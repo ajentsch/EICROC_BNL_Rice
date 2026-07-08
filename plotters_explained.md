@@ -1,7 +1,11 @@
 06/08/26
+
 To generate required output.csv file, go to daqst3 and run:
-./zcu106 -d /dev/ttyUSB3 -m 0 
+
+./zcu106 -d /dev/ttyUSB3 -m 0
+ 
 ./zcu106 -d /dev/ttyUSB3 -n 10 -m 2 | ./ana_zcu
+
 output.csv will be generated.
 
  Then run convert_event_format.py to convert that file into the required format for eicroc1_plotter.cxx. Root must be 
