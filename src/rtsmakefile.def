@@ -1,1 +1,16 @@
-# Project Makefile meant to be included in lower level Makefiles.
+INCLUDES = -I. -I.. 
+
+export CC := gcc
+export CXX := g++
+
+CXXFLAGS = -O3 -Wall -m64 -Wno-format  -pipe -fverbose-asm $(INCLUDES)
+
+#-Wno-error=strict-overflow -Wno-error=unused-label -Wno-error=unused-value -Wno-error=unused-variable -Wno-error=unused-function -Wno-unused-but-set-variable
+
+LDFLAGS += -m64 
+
+export MAKEDEPEND =  makedepend -Y -w7 -- ${CXXFLAGS} -- *.cxx *.C *.h *.c *.hh 2>rts.makedepend.err
+export CLEAN = rm -f rts.makedepend.err err out *.o *.a *.so *.bak *~ #*
+
+LINK.o = $(CXX) $(LDFLAGS)
+
