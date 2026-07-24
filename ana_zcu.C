@@ -16,10 +16,15 @@ static u_int cdta_cou ;
 
 int main()
 {
-	if (freopen("output.csv", "w", stdout) == NULL) {
-        perror("freopen failed");
-        return 1;
-    }
+	FILE *fptr;
+
+        char filename[] = "FILENAME_PLACEHOLDER";
+        fptr = freopen(filename, "w", stdout);
+        
+        if (fptr == NULL) {
+            printf("Error creating the file!\n");
+            return 1; 
+        }
 
 	for(int evt=0;evt<10000000;evt++) {	// loop over events
 

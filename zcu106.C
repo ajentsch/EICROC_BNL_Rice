@@ -595,7 +595,7 @@ void gtp_reset()
 
 	for(int i=0;i<100000;i++) {
 		u_int st = rd(16+2) ;
-		if(st & (1<<4)) {
+		if(st & (0<<4)) {
 			printf("Rst RX after %d: 0x%08X\n",i,st) ;
 			break ;
 		}
@@ -710,6 +710,7 @@ int main(int argc, char *argv[])
 	switch(mode) {
 	int column, row ;
 	u_int addr ;
+	u_short alex;
 	case 0 :
 		// reset
 		wr(2,0) ;	// reset last run
@@ -753,7 +754,7 @@ int main(int argc, char *argv[])
 
 		// FIRST: values I want for a particular pixel
 		i2c_wr(0x0001,0x80) ;
-		i2c_wr(0x0002,0x6C) ;	// for pix
+		i2c_wr(0x0002,0x64) ;	// for pix
 		i2c_wr(0x0003,0x04) ;
 		i2c_wr(0x0004,0x01) ;
 		i2c_wr(0x0005,0x20) ;
@@ -766,11 +767,14 @@ int main(int argc, char *argv[])
 		addr = 0x2000 | (column<<16) | (row<<3) ;
 
 		i2c_wr(addr|1,0x80) ;
-		i2c_wr(addr|2,0x00) ;
+		i2c_wr(addr|2,0x3C) ; // was originally 0x00
 		i2c_wr(addr|3,0x00) ;
 		i2c_wr(addr|4,0x01) ;
 		i2c_wr(addr|5,0x20) ;
-
+	
+		alex = i2c_rd(addr|2);
+	
+		printf("read check - %x \n", alex);  
 
 		// read those values back...
 		for(int i=0;i<=0x1B;i++) {
@@ -834,7 +838,40 @@ int main(int argc, char *argv[])
 		//wr(0,0) ; Leaving EICROC1 in RESET.\n") ;
 		
 		return 0 ;
-	case 2 :
+	case 2 : {
+		//per pixel writes scheme for bad EICROC1
+                // FIRST
+                //      Write the registers for the pixel you want!
+                //      But using addresses 0x1..0x5 (note NO higher order bits)
+                // SECOND
+                //      Use the pixel's address e.g. 0x20F9... and write the
+                //      values for ALL the other pixels!
+
+                // FIRST: values I want for a particular pixel
+                i2c_wr(0x0001,0x80) ;
+                i2c_wr(0x0002,0x64) ;   // for pix
+                i2c_wr(0x0003,0x04) ;
+                i2c_wr(0x0004,0x01) ;
+                i2c_wr(0x0005,0x20) ;
+
+                column = 0 ;            // 0..31; but only use 0..3 for my tests
+                row = 31 ;              // 0..31
+
+                // SECOND
+                // use the correct pixel but set the values for all
+                addr = 0x2000 | (column<<16) | (row<<3) ;
+		int v_ref_val = 0x00;
+
+                i2c_wr(addr|1,0x80) ;
+                i2c_wr(addr|2,v_ref_val) ; // was originally 0x00
+                i2c_wr(addr|3,0x00) ;
+                i2c_wr(addr|4,0x01) ;
+                i2c_wr(addr|5,0x20) ;
+
+                alex = i2c_rd(addr|2);
+
+                printf("read check - %x \n", alex);
+
 		for(int e=0;e<num_events;e++) {
 		
 		int w_cou = 0 ;
@@ -851,10 +888,12 @@ int main(int argc, char *argv[])
 			if(strcmp(buff,"8FFFFFFF")==0) break ;
 		}
 		fflush(stdout) ;
+
 		fprintf(stderr,"Done evt %d, %d words after %d secs\n",e,w_cou,time(0)-now) ;
 		}
 		return 0 ;
 		break ;
+                }
 	case 3 :
 		{
 		int tot_bytes = 0 ;
