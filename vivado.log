@@ -1,0 +1,44 @@
+#-----------------------------------------------------------
+# Vivado v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Wed Jun 24 10:19:09 2026
+# Process ID: 1750203
+# Current directory: /home/epic/tonko
+# Command line: vivado -mode batch -notrace -source zcu106_program.tcl
+# Log file: /home/epic/tonko/vivado.log
+# Journal file: /home/epic/tonko/vivado.jou
+# Running On        :daqst3.star.bnl.gov
+# Platform          :unknown
+# Operating System  :unknown
+# Processor Detail  :Intel(R) Xeon(R) CPU           E5530  @ 2.40GHz
+# CPU Frequency     :2394.099 MHz
+# CPU Physical cores:4
+# CPU Logical cores :8
+# Host memory       :24922 MB
+# Swap memory       :7998 MB
+# Total Virtual     :32921 MB
+# Available Virtual :18942 MB
+#-----------------------------------------------------------
+source zcu106_program.tcl -notrace
+open_hw_manager: Time (s): cpu = 00:00:16 ; elapsed = 00:00:17 . Memory (MB): peak = 1631.535 ; gain = 0.023 ; free physical = 1527 ; free virtual = 17714
+INFO: [Labtools 27-2285] Connecting to hw_server url TCP:localhost:3121
+INFO: [Labtools 27-3415] Connecting to cs_server url TCP:localhost:0
+INFO: [Labtools 27-3417] Launching cs_server...
+INFO: [Labtools 27-2221] Launch Output:
+
+
+******** Xilinx cs_server v2024.1.0
+  ****** Build date   : Apr 26 2024-21:40:49
+    **** Build number : 2024.1.1714182049
+      ** Copyright 2017-2022 Xilinx, Inc. All Rights Reserved.
+      ** Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+
+
+
+INFO: [Labtoolstcl 44-466] Opening hw_target localhost:3121/xilinx_tcf/Xilinx/16036
+INFO: [Labtools 27-3164] End of startup status: HIGH
+program_hw_devices: Time (s): cpu = 00:00:11 ; elapsed = 00:00:11 . Memory (MB): peak = 1647.754 ; gain = 0.000 ; free physical = 1274 ; free virtual = 17528
+INFO: [Labtools 27-2302] Device xczu7 (JTAG device index = 0) is programmed with a design that has 1 ILA core(s).
+INFO: [Common 17-206] Exiting Vivado at Wed Jun 24 10:19:51 2026...

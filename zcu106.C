@@ -704,7 +704,7 @@ int main(int argc, char *argv[])
 
 
 	// grab them from the canonical location
-	open_py("/home/epic/tonko/registers_values.py") ;
+	open_py("./registers_values.py") ;
 
 	
 	switch(mode) {
@@ -790,7 +790,7 @@ int main(int argc, char *argv[])
 
 
 		{
-		int cmd_mode = 4 ;		//4: DON'T issue CMDPULSE, 0: issue CMDPULSE
+		int cmd_mode = 0 ;		//4: DON'T issue CMDPULSE, 0: issue CMDPULSE
 		int en_ack_to_cmd = 12 ;	// any length longer than at least 8
 		int cmd_to_end_ack = 4 ;	// keep at 4 normally
 
@@ -802,7 +802,7 @@ int main(int argc, char *argv[])
 
 	case 1 :
 		for(int i=0;i<num_events;i++) {
-			int cmd_mode = 4 ;	// bit 2: disable CMD
+			int cmd_mode = 0 ;	// bit 2: disable CMD
 
 			printf("Fire %d/%d, mode %d...\n",i,num_events,cmd_mode) ;
 
@@ -871,6 +871,13 @@ int main(int argc, char *argv[])
                 alex = i2c_rd(addr|2);
 
                 printf("read check - %x \n", alex);
+                // issue cmd pulse, taken from case 0
+                int cmd_mode = 0 ;              //4: DON'T issue CMDPULSE, 0: issue CMDPULSE
+                int en_ack_to_cmd = 12 ;        // any length longer than at least 8
+                int cmd_to_end_ack = 4 ;        // keep at 4 normally
+
+                wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
+                wr(2,cmd_mode<<1) ;
 
 		for(int e=0;e<num_events;e++) {
 		
