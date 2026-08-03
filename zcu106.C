@@ -10,6 +10,9 @@
 #include <stdlib.h>
 #include <time.h>
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define ANSI_GREEN      "\033[32m"
 #define ANSI_RED        "\033[31m"
 #define ANSI_BLUE       "\033[34m"
@@ -56,7 +59,7 @@ int ser_open()
 		return -1 ;
 	}
 
-	
+
 	struct termios ts ;
 	memset(&ts,0,sizeof(ts)) ;
 	// sets up raw terminal data transmission with forced baud rate
@@ -173,7 +176,7 @@ u_int rd(u_int reg)
 	char cmd[16] ;
 	u_int r ;
 	u_int val ;
-	
+
 	// format of raw string command: "r <reg number>\n"
 	sprintf(cmd,"r %u\n",reg) ;
 	// command is transmitted to connected to hardware
@@ -266,7 +269,7 @@ u_short i2c_rd(u_short reg)
 	// extracts register data from expected format
 	ser_ln_read(cmd) ;
 	int ret = sscanf(cmd,"EIC R 0x%X: 0x%X",&r,&val) ;
-	
+
 	// returns register val if found
 	if(ret==2 && r==reg) {
 		return val ;
@@ -275,7 +278,7 @@ u_short i2c_rd(u_short reg)
 	// return if failed
 	perror("i2c_rd failed") ;
 	return 0xFFFF ;
-	
+
 }
 
 // counter for registers
@@ -451,7 +454,7 @@ static int run_exe(int mode)
 				sscanf(rcmd,"Reg %d = 0x%X",&dummy,&val) ;
 
 				int ch = (val >> 16) & 0x3F ;
-				
+
 				if(val&0xFFFF) {
 					adc[ch] = val & 0xFFFF ;
 					printf("%d: %s: 0x%08X: ch %2d, ADC %d\n",i,rcmd,val,ch,val&0xFFFF) ;
@@ -529,9 +532,9 @@ void gtp_reset()
 	wr(2,control) ;
 
 	usleep(10000) ;
-	
+
 	printf("... ALL 0x%08X (0x%X)\n",rd(16+2),rd(2)) ;
-	
+
 	control &= ~(1<<9) ;
 	wr(2,control) ;
 
@@ -595,6 +598,7 @@ void gtp_reset()
 
 	for(int i=0;i<100000;i++) {
 		u_int st = rd(16+2) ;
+		if(st & (1<<4)) {
 		if(st & (0<<4)) {
 			printf("Rst RX after %d: 0x%08X\n",i,st) ;
 			break ;
@@ -603,7 +607,7 @@ void gtp_reset()
 
 	usleep(1000) ;
 
-	
+
 #endif
 
 
@@ -624,7 +628,7 @@ void gtp_reset()
 }
 
 #if 0	
-	
+
 void gtp_run()
 {
 	u_int freq_rx, freq_tx ;
@@ -704,9 +708,9 @@ int main(int argc, char *argv[])
 
 
 	// grab them from the canonical location
-	open_py("./registers_values.py") ;
+	open_py("/home/epic/tonko/registers_values.py") ;
 
-	
+
 	switch(mode) {
 	int column, row ;
 	u_int addr ;
@@ -754,6 +758,7 @@ int main(int argc, char *argv[])
 
 		// FIRST: values I want for a particular pixel
 		i2c_wr(0x0001,0x80) ;
+		i2c_wr(0x0002,0x6C) ;	// for pix
 		i2c_wr(0x0002,0x64) ;	// for pix
 		i2c_wr(0x0003,0x04) ;
 		i2c_wr(0x0004,0x01) ;
@@ -767,10 +772,12 @@ int main(int argc, char *argv[])
 		addr = 0x2000 | (column<<16) | (row<<3) ;
 
 		i2c_wr(addr|1,0x80) ;
+		i2c_wr(addr|2,0x00) ;
 		i2c_wr(addr|2,0x3C) ; // was originally 0x00
 		i2c_wr(addr|3,0x00) ;
 		i2c_wr(addr|4,0x01) ;
 		i2c_wr(addr|5,0x20) ;
+
 	
 		alex = i2c_rd(addr|2);
 	
@@ -792,7 +799,7 @@ int main(int argc, char *argv[])
 		{
 		int cmd_mode = 0 ;		//4: DON'T issue CMDPULSE, 0: issue CMDPULSE
 		int en_ack_to_cmd = 12 ;	// any length longer than at least 8
-		int cmd_to_end_ack = 4 ;	// keep at 4 normally
+		int cmd_to_end_ack = 1 ;	// keep at 4 normally
 
 		wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
 		wr(2,cmd_mode<<1) ;
@@ -802,7 +809,7 @@ int main(int argc, char *argv[])
 
 	case 1 :
 		for(int i=0;i<num_events;i++) {
-			int cmd_mode = 0 ;	// bit 2: disable CMD
+			int cmd_mode = 4 ;	// bit 2: disable CMD
 
 			printf("Fire %d/%d, mode %d...\n",i,num_events,cmd_mode) ;
 
@@ -829,14 +836,14 @@ int main(int argc, char *argv[])
 				}
 			}
 
-			
+
 //			sleep(20) ;		// wait between events
 		}
 
 		printf("Done with %d events.\n",num_events) ;
-		
+
 		//wr(0,0) ; Leaving EICROC1 in RESET.\n") ;
-		
+
 		return 0 ;
 	case 2 : {
 		//per pixel writes scheme for bad EICROC1
@@ -848,8 +855,8 @@ int main(int argc, char *argv[])
                 //      values for ALL the other pixels!
 
                 // FIRST: values I want for a particular pixel
-                i2c_wr(0x0001,0x80) ;
-                i2c_wr(0x0002,0x64) ;   // for pix
+                i2c_wr(0x0001,0x40) ;
+                i2c_wr(0x0002,0x00) ;   // for pix
                 i2c_wr(0x0003,0x04) ;
                 i2c_wr(0x0004,0x01) ;
                 i2c_wr(0x0005,0x20) ;
@@ -860,27 +867,34 @@ int main(int argc, char *argv[])
                 // SECOND
                 // use the correct pixel but set the values for all
                 addr = 0x2000 | (column<<16) | (row<<3) ;
-		int v_ref_val = 0x00;
+		int v_ref_val = 0x40;
 
-                i2c_wr(addr|1,0x80) ;
+                //i2c_wr(addr|1,0xC0) ; // descriminator is active
                 i2c_wr(addr|2,v_ref_val) ; // was originally 0x00
-                i2c_wr(addr|3,0x00) ;
+                i2c_wr(addr|3,0x04) ; // dig output is turned on, preamp is turned off (for all pixels), ctest is on
                 i2c_wr(addr|4,0x01) ;
                 i2c_wr(addr|5,0x20) ;
 
-                alex = i2c_rd(addr|2);
+                i2c_wr(addr|1,0x80) ;
+                //i2c_wr(addr|2,v_ref_val) ; // was originally 0x00
+                //i2c_wr(addr|3,0x00) ;
+                //i2c_wr(addr|4,0x01) ;
+                //i2c_wr(addr|5,0x20) ;
 
-                printf("read check - %x \n", alex);
-                // issue cmd pulse, taken from case 0
+               // when preamp output to scope is enabled, seems to affect adc output (all adcs are basically 0)
+
+                alex = i2c_rd(addr|2);
                 int cmd_mode = 0 ;              //4: DON'T issue CMDPULSE, 0: issue CMDPULSE
-                int en_ack_to_cmd = 12 ;        // any length longer than at least 8
+                int en_ack_to_cmd = 1 ;        // any length longer than at least 8
                 int cmd_to_end_ack = 4 ;        // keep at 4 normally
 
                 wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
                 wr(2,cmd_mode<<1) ;
 
+                printf("read check - %x \n", alex);
+
 		for(int e=0;e<num_events;e++) {
-		
+
 		int w_cou = 0 ;
 		now = time(0) ;
 		ser_write("R 1\n") ;
@@ -913,7 +927,7 @@ int main(int argc, char *argv[])
 				if(errno==EAGAIN) continue ;
 				else break ;
 			}
-			
+
 			tot_bytes += ret ;
 
 //			for(int i=0;i<ret/4;i++) {
@@ -980,7 +994,7 @@ int main(int argc, char *argv[])
 
 			continue ;
 		}
-		
+
 		printf("%s%c%s",ANSI_BLUE,ch,ANSI_RESET) ;
 		//printf("\n--- 0x%02X\n",ch) ;		
 
