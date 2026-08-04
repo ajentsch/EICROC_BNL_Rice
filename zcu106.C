@@ -335,7 +335,7 @@ int open_py(const char *fname)
 		}
 		else continue ;
 
-		//printf("Reg %d: 0x%04X = [%s] -- 0x%02X\n",reg_cou,reg,b,val) ;
+		printf("Reg %d: 0x%04X = [%s] -- 0x%02X\n",reg_cou,reg,b,val) ;
 
 		regs[reg_cou].reg = reg ;
 		regs[reg_cou].val = val ;
@@ -708,7 +708,7 @@ int main(int argc, char *argv[])
 
 
 	// grab them from the canonical location
-	open_py("/home/epic/tonko/registers_values.py") ;
+	open_py("/home/rkfuentes/rachels_code/registers_values.py") ;
 
 
 	switch(mode) {
@@ -853,7 +853,17 @@ int main(int argc, char *argv[])
                 // SECOND
                 //      Use the pixel's address e.g. 0x20F9... and write the
                 //      values for ALL the other pixels!
+		
+		for(int i=0;i<reg_cou;i++) {
+                        u_int reg = regs[i].reg ;
 
+                        //if(reg<0x4000) continue ;
+
+                        ret = i2c_wr(reg,regs[i].val) ;
+
+                        printf("I2C %d: write 0x%04X = 0x%02X\n",i,regs[i].reg,regs[i].val) ;
+                }
+		
                 // FIRST: values I want for a particular pixel
                 i2c_wr(0x0001,0x40) ;
                 i2c_wr(0x0002,0x00) ;   // for pix

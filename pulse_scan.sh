@@ -24,10 +24,10 @@ for val in {0..63..3}; do
 
     outfile="pulse_result_${val}.csv"
     
-    binary_val=$(python3 -c "print(f'{ $val :08b}')")
+    binary_val=$(python3 -c "print(f'{ $val :06b}')")
 
     # substitute in pulse value for each iteration
-    sed "s/eic_clib.write_asic_indirect_reg(0x400C, 0bPLACEHOLDER)  #dacb pulser/eic_clib.write_asic_indirect_reg(0x400C, 0b$binary_val)  #dacb pulser/" "${PY_FILE}.bak" > "$PY_FILE"
+    sed "s/eic_clib.write_asic_indirect_reg(0x400C, 0b11PLACEHOLDER)  #dacb pulser/eic_clib.write_asic_indirect_reg(0x400C, 0b11$binary_val)  #dacb pulser/" "${PY_FILE}.bak" > "$PY_FILE"
     sed "s|FILENAME_PLACEHOLDER|$outfile|" "$ANA_FILE" > temp_ana_program.c
 
     # python3 "$PY_FILE"
