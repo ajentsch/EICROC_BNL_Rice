@@ -11,6 +11,9 @@
 
 #include <iostream>
 #include <fstream>
+#include <set> // Add at top of file if not present
+
+std::set<int> active_pixels; // Tracks pixels actually found in the CSV
 
 //Lightweight EICROC digital output analyzer
 //
@@ -73,7 +76,7 @@ Color_t markerColor[16] = {kGray, kGray+1, kGray+2, kGray+3, kGreen, kGreen+1, k
 int markerStyle[26] = {20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 22, 22, 29, 29, 29, 29};
 
 int numGoodEvents[32][32];
-int numEvents = 1999;
+int numEvents = 15;
 int pixels_of_interest[16] = {0, 1, 2, 3, 32, 33, 34, 35, 64, 65, 66, 67, 96, 97, 98, 99}; // {0, 7, 15, 31, 32, 39, 47, 63, 64, 71, 78, 85, 86, 93, 100, 107};
 int pixel_colors[16] = {kBlack, kRed, kBlue, kGreen+2, kMagenta, kCyan+2, kOrange+1, kSpring-1, 
                         kViolet, kPink+9, kTeal-1, kAzure+1, kYellow+2, kGray+2, kRed-7, kBlue-7};
@@ -99,6 +102,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 	
 	std::vector<double> threshold_values;
 	std::vector<double> efficiency;
+	TH1::AddDirectory(kFALSE);
 	
 	int pad = 1; //Sets a pad number that you can use later for drawing histograms on a divide canvas
 	
@@ -133,7 +137,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 
 	// 16 scatter plots for pedestal subtracted means per timebin
 	TMultiGraph *mg_drift = new TMultiGraph();
-	mg_drift->SetTitle("SUM(ADCn)/Nevents - ADC(mean);Time Bin (25ns);Average Delta [DACu]");
+	mg_drift->SetTitle("SUM(ADCn)/Nevents - ADC(mean);Time Bin (25ns);Raw ADC Mean");
 
 	TGraph *g_pixel_drift[16];
 	for (int i = 0; i < 16; i++) {
@@ -191,7 +195,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 			for (int tbin = 0; tbin < 8; tbin++){
 				TString noise_tbin_title;
 				noise_tbin_title.Form("h_noise_distribution_pixel_%d_tbin_%d",pixel, tbin);
-				h_noise_per_timebin[pixel][tbin] = new TH1D(noise_tbin_title, "Raw ADC Noise;ADC Channel;Counts", 25, 0, 256);
+				h_noise_per_timebin[pixel][tbin] = new TH1D(noise_tbin_title, "Raw ADC Noise;ADC Channel;Counts", 256, 0, 256);
 			}
 		}
 
@@ -556,6 +560,10 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 				int lineEventID = atoi(eventNumber_str.c_str());
 				int pixel = std::stoi(pixelNumber_str);
 
+				if (pixel >= 0 && pixel < 1024) {
+					active_pixels.insert(pixel);
+				}
+
 				// --- EVENT BOUNDARY TRIGGER ---
 				// whenever the event ID changes in the file, mark event as completed
 				if (lineEventID != currentEventID && !firstLineOfFile) {
@@ -607,13 +615,17 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 		cout << "Calculating multi-event average waveforms and RMS noise profiles..." << endl;
 
 		// loop over each of your 16 active plotting channels
+		int pixel_total_count = 0;
 
-		for (int pixel_id = 0; pixel_id < 16; pixel_id++) {
-			int pixel = pixels_of_interest[pixel_id];
+		cout << "Calculating multi-event average waveforms for " << active_pixels.size() << " present pixels..." << endl;
 
+
+
+		for (int pixel : active_pixels) {
 			double pixel_total_sum = 0.0;
 			int pixel_total_count = 0;
 
+			// Calculate sum across all timebins and events for this active pixel
 			for (int tBin = 0; tBin < 8; tBin++) {
 				for (int ev = 0; ev < numTriggeredEvents; ev++) {
 					pixel_total_sum += adc_event_buffer[ev][pixel][tBin];
@@ -623,13 +635,18 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 
 			if (pixel_total_count > 0) {
 				double pixel_overall_mean = pixel_total_sum / pixel_total_count;
-				int col = floor(pixel / 32);
-				int row = pixel - (32 * col);
 				
-				// Fill the 2D map precisely (X axis = Col, Y axis = Row)
+				int col = pixel / 32;
+				int row = pixel % 32;
+				
+				// Fill 2D map ONLY for pixels found in the input file
+				// (Unseen pixels remain at 0 / empty in TH2D)
 				ADC_mean_map->SetBinContent(col + 1, row + 1, pixel_overall_mean);
-				
 			}
+		}
+
+		for (int pixel_id = 0; pixel_id < 16; pixel_id++) {
+			int pixel = pixels_of_interest[pixel_id];
 
 			// loop over each of the 8 sequential time slices
 			for (int tBin = 0; tBin < 8; tBin++) {
@@ -663,9 +680,9 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 						double variance = (sum_squares / count) - (mean * mean);
 						if (variance > 0) {
 							rms_uncertainty = TMath::Sqrt(variance);
-							pixelColumn = floor(pixel/32);
-							pixelRow = pixel - (32*pixelColumn);
-							ADC_mean_map->Fill(pixelColumn + 1, pixelRow + 1, mean);
+							//pixelColumn = floor(pixel/32);
+							//pixelRow = pixel - (32*pixelColumn);
+							//ADC_mean_map->Fill(pixelColumn + 1, pixelRow + 1, mean);
 						}
 					}
 				}
@@ -684,7 +701,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 					double delta = timebin_mean - global_pixel_mean;
 
 					// add the coordinate point (X = Time Bin, Y = Delta) to the pixel's graph
-					g_pixel_drift[pixel_id]->SetPoint(tBin, tBin, delta);
+					g_pixel_drift[pixel_id]->SetPoint(tBin, tBin, timebin_mean);
 				}
 				// set a single average data point per time bin for the pixel graph
 				int pointIdx = adc_mean_distributions[pixel]->GetN();
@@ -949,7 +966,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 	mg_drift->Draw("AP");
 
 	// force y axis limits to zoom in around 0
-	mg_drift->GetYaxis()->SetRangeUser(-2, 2); 
+	// mg_drift->GetYaxis()->SetRangeUser(-2, 2); 
 
 	// legend
 	TLegend *legend = new TLegend(0.85, 0.15, 0.98, 0.85);
@@ -999,8 +1016,8 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 			// Now navigate to the pad and draw the cleanly centered line
 			adcMeanCan->cd(pixel_id + 1);
 			adc_mean_distributions[pixel]->SetMarkerSize(4); // Sets marker to 1.5 times the default size
-			adc_mean_distributions[pixel]->SetMinimum(-0.6);
-			adc_mean_distributions[pixel]->SetMaximum(0.6);
+			// adc_mean_distributions[pixel]->SetMinimum(-0.6);
+			// adc_mean_distributions[pixel]->SetMaximum(0.6);
 			adc_mean_distributions[pixel]->Draw("APX");
 	}
 
@@ -1053,6 +1070,7 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 
 	for (int pixel = 0; pixel < 2; pixel++) {
 		for (int tbin = 0; tbin < 8; tbin++) {
+			
 			timebinNoiseCan->cd((pixel * 8) + tbin + 1);
 			// Style the histogram
 			Double_t mean = h_noise_per_timebin[pixel][tbin]->GetMean();
@@ -1078,6 +1096,12 @@ void eicroc1_plotter(TString inputFileName = "", TString inputFileName_pedestal 
 			
 			// Draw the structured noise graph
 			h_noise_per_timebin[pixel][tbin]->Draw("E HIST"); 
+
+			if (pixel == 0 and tbin == 0) {
+				TCanvas *singleTbin = new TCanvas("singletbin", "Timebin Noise Spectrum", 1000, 2400);
+				singleTbin->cd();
+				h_noise_per_timebin[pixel][tbin]->Draw("E HIST");
+			}
 		}
 	}
 	

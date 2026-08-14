@@ -240,7 +240,8 @@ u_short i2c_wr(u_short reg, u_char val)
 	// reads back expected format: reg, val, err
 	ser_ln_read(cmd) ;
 	int ret = sscanf(cmd,"EIC W 0x%X,0x%X: 0x%X",&r,&val,&err) ;
-
+        printf("EIC W 0x%X,0x%X: 0x%X\n",r,val,err);
+        
 	// checks error log if it exists
 	if(ret==3 && r==reg) {
 		return err ;
@@ -269,7 +270,7 @@ u_short i2c_rd(u_short reg)
 	// extracts register data from expected format
 	ser_ln_read(cmd) ;
 	int ret = sscanf(cmd,"EIC R 0x%X: 0x%X",&r,&val) ;
-
+        printf("EIC R 0x%X: 0x%X\n",r,val);
 	// returns register val if found
 	if(ret==2 && r==reg) {
 		return val ;
@@ -715,6 +716,8 @@ int main(int argc, char *argv[])
 	int column, row ;
 	u_int addr ;
 	u_short alex;
+	u_short global_10;
+	u_short global_11;
 	case 0 :
 		// reset
 		wr(2,0) ;	// reset last run
@@ -757,26 +760,26 @@ int main(int argc, char *argv[])
 		//	values for ALL the other pixels!
 
 		// FIRST: values I want for a particular pixel
-		i2c_wr(0x0001,0x80) ;
-		i2c_wr(0x0002,0x6C) ;	// for pix
-		i2c_wr(0x0002,0x64) ;	// for pix
-		i2c_wr(0x0003,0x04) ;
-		i2c_wr(0x0004,0x01) ;
-		i2c_wr(0x0005,0x20) ;
+		//i2c_wr(0x0001,0x80) ;
+		//i2c_wr(0x0002,0x0C) ;	// for pix
+		//i2c_wr(0x0002,0x3C) ;	// for pix
+		//i2c_wr(0x0003,0x00) ;
+		//i2c_wr(0x0004,0x01) ;
+		//i2c_wr(0x0005,0x0) ;
 
 		column = 0 ;		// 0..31; but only use 0..3 for my tests
-		row = 31 ;		// 0..31
+		row = 0 ;		// 0..31
 
 		// SECOND
 		// use the correct pixel but set the values for all
 		addr = 0x2000 | (column<<16) | (row<<3) ;
 
-		i2c_wr(addr|1,0x80) ;
-		i2c_wr(addr|2,0x00) ;
-		i2c_wr(addr|2,0x3C) ; // was originally 0x00
-		i2c_wr(addr|3,0x00) ;
-		i2c_wr(addr|4,0x01) ;
-		i2c_wr(addr|5,0x20) ;
+		//i2c_wr(addr|1,0x80) ;
+		//i2c_wr(addr|2,0x00) ;
+		//i2c_wr(addr|2,0x3C) ; // was originally 0x00
+		//i2c_wr(addr|3,0x00) ;
+		//i2c_wr(addr|4,0x01) ;
+		//i2c_wr(addr|5,0x0) ;
 
 	
 		alex = i2c_rd(addr|2);
@@ -865,9 +868,9 @@ int main(int argc, char *argv[])
                 }
 		
                 // FIRST: values I want for a particular pixel
-                i2c_wr(0x0001,0x40) ;
-                i2c_wr(0x0002,0x00) ;   // for pix
-                i2c_wr(0x0003,0x04) ;
+                i2c_wr(0x0001,0x80) ;
+                i2c_wr(0x0002,0x14) ;   // for pix
+                i2c_wr(0x0003,0x94) ;
                 i2c_wr(0x0004,0x01) ;
                 i2c_wr(0x0005,0x20) ;
 
@@ -880,20 +883,34 @@ int main(int argc, char *argv[])
 		int v_ref_val = 0x40;
 
                 //i2c_wr(addr|1,0xC0) ; // descriminator is active
-                i2c_wr(addr|2,v_ref_val) ; // was originally 0x00
-                i2c_wr(addr|3,0x04) ; // dig output is turned on, preamp is turned off (for all pixels), ctest is on
-                i2c_wr(addr|4,0x01) ;
-                i2c_wr(addr|5,0x20) ;
-
-                i2c_wr(addr|1,0x80) ;
                 //i2c_wr(addr|2,v_ref_val) ; // was originally 0x00
-                //i2c_wr(addr|3,0x00) ;
+                //i2c_wr(addr|3,0x04) ; // dig output is turned on, preamp is turned off (for all pixels), ctest is on
                 //i2c_wr(addr|4,0x01) ;
-                //i2c_wr(addr|5,0x20) ;
+                //i2c_wr(addr|5,0x00) ;
+
+                i2c_wr(0x2001,0x80) ;
+                i2c_wr(0x2002,0x14) ; // was originally 0x00
+                i2c_wr(0x2003,0x8) ;
+                i2c_wr(0x2004,0x01) ;
+                i2c_wr(0x2005,0x00) ;
+
+		
+		// reg global 10:  0b01XXXXXXXX001010
+
+		//reg global 11:   0b0100000000XX1011
+		
+		// writing vthresh global register value
+		//int v_thresh_val_10 = 0x64;
+		//int v_thresh_val_11 = 0x00;
+		// global register 10
+		//i2c_wr(0x400A, v_thresh_val_10);
+		// global register 11
+		//i2c_wr(0x400B, v_thresh_val_11);
 
                // when preamp output to scope is enabled, seems to affect adc output (all adcs are basically 0)
 
-                alex = i2c_rd(addr|2);
+                global_10 = i2c_rd(0x400A);
+		global_11 = i2c_rd(0x400B);
                 int cmd_mode = 0 ;              //4: DON'T issue CMDPULSE, 0: issue CMDPULSE
                 int en_ack_to_cmd = 1 ;        // any length longer than at least 8
                 int cmd_to_end_ack = 4 ;        // keep at 4 normally
@@ -901,7 +918,8 @@ int main(int argc, char *argv[])
                 wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
                 wr(2,cmd_mode<<1) ;
 
-                printf("read check - %x \n", alex);
+                printf("global10 read check - 0x%x \n", global_10);
+		printf("global11 read check - 0x%x \n", global_11);
 
 		for(int e=0;e<num_events;e++) {
 
