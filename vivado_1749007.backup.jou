@@ -1,0 +1,24 @@
+#-----------------------------------------------------------
+# Vivado v2024.1 (64-bit)
+# SW Build 5076996 on Wed May 22 18:36:09 MDT 2024
+# IP Build 5075265 on Wed May 22 21:45:21 MDT 2024
+# SharedData Build 5076995 on Wed May 22 18:29:18 MDT 2024
+# Start of session at: Wed Jun 24 10:12:43 2026
+# Process ID: 1749007
+# Current directory: /home/epic/tonko
+# Command line: vivado -mode batch -notrace -source zcu106_program.tcl
+# Log file: /home/epic/tonko/vivado.log
+# Journal file: /home/epic/tonko/vivado.jou
+# Running On        :daqst3.star.bnl.gov
+# Platform          :unknown
+# Operating System  :unknown
+# Processor Detail  :Intel(R) Xeon(R) CPU           E5530  @ 2.40GHz
+# CPU Frequency     :2024.158 MHz
+# CPU Physical cores:4
+# CPU Logical cores :8
+# Host memory       :24922 MB
+# Swap memory       :7998 MB
+# Total Virtual     :32921 MB
+# Available Virtual :18966 MB
+#-----------------------------------------------------------
+source zcu106_program.tcl -notrace
