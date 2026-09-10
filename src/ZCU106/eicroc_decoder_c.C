@@ -102,6 +102,9 @@ int eicroc_decoder_c::decode(char *buff)
 		else if(trl_cou) {
 			trl[trl_cou++] = datum ;
 			if(trl_cou==8) {
+				if(trl[1]&1) {
+					LOG(ERR,"Timeout") ;
+				}
 				state = 3 ;
 				goto re_state ;		// continue to state==3 without a new call
 			}
