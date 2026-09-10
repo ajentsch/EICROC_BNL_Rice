@@ -4,11 +4,13 @@ include ../rtsmakefile.def
 #LDLIBS+= -lmosquitto
 
 
-BINS = zcu106
+BINS = zcu106 decoder
 
 all: $(BINS)
 
 zcu106 : zcu106_c.o zcu106.o
+
+decoder : eicroc_decoder_c.o decoder.o
 
 depend:
 	@$(MAKEDEPEND)
