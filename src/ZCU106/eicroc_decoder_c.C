@@ -37,6 +37,7 @@ int eicroc_decoder_c::decode(char *buff)
 {
 	u_int datum ;
 
+
 	if(ssc(buff,&datum)==0) return -1 ;
 
 	re_state: ;
@@ -93,9 +94,14 @@ int eicroc_decoder_c::decode(char *buff)
 		break ;
 	case 2 :	// wait for the event to end...
 		//printf("Trls %d:  0x%08X\n",l_cou,datum) ;
-		//LOG(TERR,"state2: datum 0x%08X, trl cou %d",datum,trl_cou) ;
+		//LOG(TERR,"state2: hdr[0] 0x%08X, datum 0x%08X, trl cou %d",hdr[0],datum,trl_cou) ;
 		
-		if(datum==0x0FFFEFFF) {	// start of trailer
+		
+		if(hdr[0]==0x87654321 && datum==0x0FFFEFFF) {	// start of trailer
+			trl_cou = 0 ;
+			trl[trl_cou++] = datum ;
+		}
+		else if(datum==0xCDEFEC01) {
 			trl_cou = 0 ;
 			trl[trl_cou++] = datum ;
 		}

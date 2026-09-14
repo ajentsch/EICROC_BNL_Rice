@@ -28,7 +28,9 @@ static const char *usb_dev = "/dev/ttyUSB3" ;
 
 static int ser_usb ;	// device
 static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global registers
+static u_int fw_flavor ;
 
+volatile int tonkoLogLevel = 0 ;
 
 int ser_open()
 {	
@@ -333,6 +335,7 @@ int main(int argc, char *argv[])
 	int run_type = 1 ;	// default is pedestal
 	u_char lane_mask = 1 ;
 
+
 	time_t now ;
 
 	while((c=getopt(argc,argv,"m:d:En:t:l:")) != EOF) {
@@ -366,6 +369,9 @@ int main(int argc, char *argv[])
 	if(ser_open()<0) exit(-1) ;
 
 
+	if(mode==-1) goto do_interactive ;
+
+
 	if(mode==0 || (mode&1)) {	// configuration phase; compatible with old style...
 	
 		// grab them from the canonical location
@@ -385,14 +391,22 @@ int main(int argc, char *argv[])
 			LOG(INFO,"%s",buff) ;
 		}
 	
+		fw_flavor = rd(7) ;
+		LOG(INFO,"FW flavor: 0x%08X",fw_flavor) ;
+
 		// reset
 		wr(2,0) ;	// reset last run
 
-		wr(0,0) ;	// reset
-		wr(0,(sel_fcmd<<2)) ;	// set SEL_FCMD=1 is (1<<2)
+		wr(0,0) ;	// reset the ASIC
+
+		// if we want to use the new, FCMD mode (1<<2) we also want to tri-state (1<<3) legacy signals
+
+		if(sel_fcmd) sel_fcmd = (1<<3) | (1<<2) ;
+
+		wr(0,sel_fcmd) ;	// set SEL_FCMD while keeping the ASIC in reset
 		usleep(1000) ;		// wait a bit...
-		wr(0,(sel_fcmd<<2)|3) ;	// enable ASIC
-		usleep(10000) ;		// wait a bit more
+		wr(0,sel_fcmd|3) ;	// enable ASIC 
+		usleep(100000) ;		// wait a bit more
 
 		// load default register values
 		for(int i=0;i<reg_cou;i++) {
@@ -507,6 +521,29 @@ int main(int argc, char *argv[])
 		wr(2,cmd_mode<<1) ;
 		}
 
+		if(fw_flavor != 0xDEADC0DE) {
+			LOG(WARN,"New FW 0x%08X",fw_flavor) ;
+
+			wr(4,6510) ;	// word count
+
+			u_int v = 0 ;
+
+			//v = rd(1) ;
+			
+
+			//LOG(NOTE,"reg 1: 0x%X",v) ;
+
+			v |= (2<<1) ;	// delay from CLK40 to start of data
+			v |= (1<<4) ;	// ROC tyoe
+			v |= (0<<8) ;	// readout type
+
+			wr(1,v) ;
+
+			wr(1,v|(1<<11)) ;	// reset delay counter
+			usleep(10000) ;
+			wr(1,v) ;
+		}
+
 	}
 	
 
@@ -556,7 +593,9 @@ int main(int argc, char *argv[])
 
 	// VERY LAST
 	if(mode&2) {
-		LOG(INFO,"Readout: %d events",num_events) ;
+		fw_flavor = rd(7) ;
+
+		LOG(INFO,"Readout: %d events, FW flavor 0x%08X",num_events,fw_flavor) ;
 
 		for(int e=0;e<num_events;e++) {
 		
@@ -571,7 +610,14 @@ int main(int argc, char *argv[])
 
 			w_cou++ ;
 			printf("Evt %d: %d = 0x%s\n",e,i,buff) ;
-			if(strcmp(buff,"8FFFFFFF")==0) break ;
+
+			// look for end of trailer
+			if(fw_flavor==0xDEADC0DE) {
+				if(strcmp(buff,"8FFFFFFF")==0) break ;
+			}
+			else {	// if(fw_flavor==0x09112026) {
+				if(strcmp(buff,"EEEEEC01")==0) break ;
+			}
 		}
 		fflush(stdout) ;
 
@@ -580,6 +626,8 @@ int main(int argc, char *argv[])
 	}
 
 	if(mode != -1) return 0 ;
+
+	do_interactive: ;
 
 	printf("Entering interactive mode:\n") ;
 
