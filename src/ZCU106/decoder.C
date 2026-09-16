@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 #include <LOG/rtsLog.h>
 
@@ -11,16 +12,20 @@
 int main(int argc, char *argv[])
 {
 	int c;
+	int out_format = -1 ;	// defaults to ana_zcu
 
 	eicroc_decoder_c decoder ;
 	
 	// setup
 	decoder.is_fcmd = 1 ;	// default is from SDOUT
 
-	while((c=getopt(argc,argv,"E")) != EOF) {
+	while((c=getopt(argc,argv,"Ef:")) != EOF) {
 	switch(c) {
 	case 'E' :
 		decoder.is_fcmd = 0 ;	// use legacy DOUT, not SDOUT
+		break ;
+	case 'f' :
+		out_format = atoi(optarg) ;
 		break ;
 	}
 	}
@@ -41,37 +46,64 @@ int main(int argc, char *argv[])
 	int ret = decoder.decode(buff) ;
 
 
-	if(ret==3) {
-
-		// dump header
-		for(int i=0;i<8;i++) {
-			printf("H 0x%08X, T 0x%08X\n",decoder.hdr[i],decoder.trl[i]) ;
-		}
-
-		
+	if(ret==3) {	// flafs end of event, let's print the data...
 		int c_max ;
 
-		// limit columns for DOUT
-		if(decoder.is_fcmd) c_max = 32 ;
-		else c_max = 4 ;
 
-		for(int c=0;c<c_max;c++) {
+		// limit columns for DOUT style vs SDOUT
+		if(decoder.is_fcmd) c_max = 32 ;	// SDOUT
+		else c_max = 4 ;			// DOUT
 
-		if(decoder.lane_had_bits[c/4]) ;	// skip lanes WO data
-		else continue ;
+		switch(out_format) {
+		case 0 :
+			
+			printf("### Event %d: \n",decoder.evt) ;
 
-		for(int r=0;r<32;r++) {
-			printf("Col %2d, row %2d: hdr 0x%02X\n",c,r,decoder.pixel[c][r].hdr) ;
-
-			for(int t=0;t<8;t++) {
-				printf("  %d: %3d %3d %d\n",t,
-				       decoder.pixel[c][r].adc[t],
-				       decoder.pixel[c][r].tdc[t],
-				       decoder.pixel[c][r].discr[t]) ;
+			// dump header
+			for(int i=0;i<8;i++) {
+				printf("H 0x%08X, T 0x%08X\n",decoder.hdr[i],decoder.trl[i]) ;
 			}
-		}}
 
-		// Restart a new event
+			for(int c=0;c<c_max;c++) {
+
+				if(decoder.lane_had_bits[c/4]) ;	// skip lanes WO data
+				else continue ;
+
+				for(int r=0;r<32;r++) {
+					printf("Col %2d, row %2d: hdr 0x%02X\n",c,r,decoder.pixel[c][r].hdr) ;
+
+					for(int t=0;t<8;t++) {
+						printf("  %d: %3d %3d %d\n",t,
+						       decoder.pixel[c][r].adc[t],
+						       decoder.pixel[c][r].tdc[t],
+						       decoder.pixel[c][r].discr[t]) ;
+					}
+				}
+			}
+			
+			break ;
+		default :	// old ana_zcu
+
+			for(int c=0;c<c_max;c++) {
+
+				if(decoder.lane_had_bits[c/4]) ;	// skip lanes WO data
+				else continue ;
+
+				for(int r=0;r<32;r++) {
+					for(int t=0;t<8;t++) {
+						printf("%d %2d %2d %d %3d %3d %d\n",decoder.evt,c,r,t,
+						       decoder.pixel[c][r].adc[t],
+						       decoder.pixel[c][r].tdc[t],
+						       decoder.pixel[c][r].discr[t]) ;
+					}
+				}
+			}
+
+			break ;
+
+		}
+
+		// Restart a new event: REQUIRED!
 		decoder.evt_start() ;
 	}
 
