@@ -23,7 +23,10 @@ save:
 
 # DO NOT DELETE
 
+decoder.o: ../LOG/rtsLog.h
+decoder.o: eicroc_decoder_c.h
+eicroc_decoder_c.o: ../LOG/rtsLog.h
+eicroc_decoder_c.o: eicroc_decoder_c.h
 zcu106.o: ../LOG/rtsLog.h
-zcu106.o: ../ZCU106/zcu106_c.h
 zcu106_c.o: ../LOG/rtsLog.h
 zcu106_c.o: zcu106_c.h

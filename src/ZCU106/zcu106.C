@@ -30,7 +30,7 @@ static int ser_usb ;	// device
 static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global registers
 static u_int fw_flavor ;
 
-volatile int tonkoLogLevel = 0 ;
+volatile int rtsLogLevel = 0 ;
 
 int ser_open()
 {	
@@ -373,7 +373,8 @@ int main(int argc, char *argv[])
 
 
 	if(mode==0 || (mode&1)) {	// configuration phase; compatible with old style...
-	
+		// SEND_CONFIG
+
 		// grab them from the canonical location
 		//	const char *reg_values = "/home/epic/tonko/registers_values.py" ; 
 		//	const char *reg_values = "alex_register_values.py" ;								
@@ -593,6 +594,8 @@ int main(int argc, char *argv[])
 
 	// VERY LAST
 	if(mode&2) {
+		// RUN_START
+
 		fw_flavor = rd(7) ;
 
 		LOG(INFO,"Readout: %d events, FW flavor 0x%08X",num_events,fw_flavor) ;
@@ -621,7 +624,7 @@ int main(int argc, char *argv[])
 		}
 		fflush(stdout) ;
 
-		LOG(TERR,"Done evt %d, %d words after %d secs...",e,w_cou,time(0)-now) ;
+		LOG(NOTE,"Done evt %d, %d words after %d secs...",e,w_cou,time(0)-now) ;
 		}
 	}
 
