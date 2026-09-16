@@ -334,11 +334,11 @@ int main(int argc, char *argv[])
 	int num_events = 1 ;
 	int run_type = 1 ;	// default is pedestal
 	u_char lane_mask = 1 ;
-
+	const char *reg_values = "orig_reg_values.py" ;								
 
 	time_t now ;
 
-	while((c=getopt(argc,argv,"m:d:En:t:l:")) != EOF) {
+	while((c=getopt(argc,argv,"m:d:En:t:l:C:")) != EOF) {
 	switch(c) {
 	case 'm' :	// execute batch command with argument...
 		mode = atoi(optarg) ;
@@ -359,6 +359,9 @@ int main(int argc, char *argv[])
 		if(sscanf(optarg,"0x%X",&lane_mask)==1) ;
 		else lane_mask = atoi(optarg) ;
 		break ;
+	case 'C' :
+		reg_values = optarg ;
+		break ;
 	}
 	}
 
@@ -374,11 +377,6 @@ int main(int argc, char *argv[])
 
 	if(mode==0 || (mode&1)) {	// configuration phase; compatible with old style...
 		// SEND_CONFIG
-
-		// grab them from the canonical location
-		//	const char *reg_values = "/home/epic/tonko/registers_values.py" ; 
-		//	const char *reg_values = "alex_register_values.py" ;								
-		const char *reg_values = "orig_reg_values.py" ;								
 
 		LOG(INFO,"Configuring: use FCMD mode %c",sel_fcmd?'Y':'N') ;
 		LOG(INFO,"Using register values file \"%s\"",reg_values) ;
