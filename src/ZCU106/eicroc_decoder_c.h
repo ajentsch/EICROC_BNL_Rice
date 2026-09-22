@@ -16,12 +16,26 @@ public:
 
 	u_int hdr[8] ;
 	u_int trl[8] ;
+	int word_cou ;
+	int bit_cou ;
+	int fmt_type ;
+	int asic_type ;
+	int b_use ;
+
+	int col_max ;
+	int row_max ;
+
 	int evt ;
 
 	// 8 lanes, each with 4 columns or 128 pixels
 	u_char lane[8][128*203] ;	// linarized bit-array
 	int lane_bits[8] ;
 	u_char lane_had_bits[8] ;
+
+
+	// for a single EICROC0 DOUT
+	u_char dout[1000*32] ;
+	int dout_bits ;
 
 	struct pixel_t {	// 8 timebins
 		u_short tdc[8] ;

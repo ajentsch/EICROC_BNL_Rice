@@ -23,14 +23,16 @@
 #define ANSI_RESET      "\033[0m"
 
 #include <LOG/rtsLog.h>
+volatile int rtsLogLevel = 0 ;
 
 static const char *usb_dev = "/dev/ttyUSB3" ;
 
 static int ser_usb ;	// device
 static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global registers
 static u_int fw_flavor ;
+static int asic_type = 1 ;			// EICROC0A, EICROC1...
 
-volatile int rtsLogLevel = 0 ;
+
 
 int ser_open()
 {	
@@ -241,7 +243,7 @@ int open_py(const char *fname)
 	FILE *f = fopen(fname,"r") ;
 
 	if(f==0) {
-		perror(fname) ;
+		LOG(ERR,"%s: %s",fname,strerror(errno)) ;
 		return -1 ;
 	}
 
@@ -334,11 +336,15 @@ int main(int argc, char *argv[])
 	int num_events = 1 ;
 	int run_type = 1 ;	// default is pedestal
 	u_char lane_mask = 1 ;
-	const char *reg_values = "orig_reg_values.py" ;								
+	const char *reg_values = 0 ;
+	const char *c_asic  ;
+	char use_dout0 = 0 ;
 
 	time_t now ;
 
-	while((c=getopt(argc,argv,"m:d:En:t:l:C:")) != EOF) {
+	rtsLogLevel = 2 ;	// set to WARN and anove
+
+	while((c=getopt(argc,argv,"m:d:En:t:l:C:A:0D:")) != EOF) {
 	switch(c) {
 	case 'm' :	// execute batch command with argument...
 		mode = atoi(optarg) ;
@@ -359,8 +365,17 @@ int main(int argc, char *argv[])
 		if(sscanf(optarg,"0x%X",&lane_mask)==1) ;
 		else lane_mask = atoi(optarg) ;
 		break ;
-	case 'C' :
+	case 'C' :	// default register values file, usually .py
 		reg_values = optarg ;
+		break ;
+	case 'A' :	
+		asic_type = atoi(optarg) ;
+		break ;
+	case '0' :
+		use_dout0 = 1 ;
+		break ;
+	case 'D' :
+		rtsLogLevel = atoi(optarg) ;
 		break ;
 	}
 	}
@@ -375,136 +390,71 @@ int main(int argc, char *argv[])
 	if(mode==-1) goto do_interactive ;
 
 
-	if(mode==0 || (mode&1)) {	// configuration phase; compatible with old style...
-		// SEND_CONFIG
+	if(mode==0 || (mode&1)) {	// SEND_CONFIG configuration phase; compatible with old style...
+		char buff[128] ;
+		int i2c_last ;
 
-		LOG(INFO,"Configuring: use FCMD mode %c",sel_fcmd?'Y':'N') ;
+		fw_flavor = rd(7) ;
+		LOG(INFO,"FW flavor: 0x%08X",fw_flavor) ;
+
+		switch(asic_type) {
+		case 0 :
+			c_asic = "EICROC0A" ;
+			use_dout0 = 1 ;	// automatic override!
+			sel_fcmd = 0 ;	// automatic override
+			lane_mask = 1 ;	// automatic override
+
+			i2c_last = 0x4012 ;
+
+			if(reg_values==0) reg_values = "eicroc0_defaults.py" ;
+
+			if(fw_flavor==0xDEADC0DE) {
+				LOG(ERR,"Old FW can't work with EICROC0A") ;
+				return -1 ;
+			}
+
+			break ;
+		case 1 :
+		default :
+			c_asic = "EICROC1" ;
+
+			i2c_last = 0x401B ;
+
+			if(reg_values==0) reg_values = "orig_reg_values.py" ;								
+			break ;
+		}
+
+
+		LOG(INFO,"Configuring ASIC %s: use FCMD mode %c; from %s",c_asic,
+		    sel_fcmd?'Y':'N',
+		    use_dout0?"DOUT0":"SDOUT") ;
+
+
+
 		LOG(INFO,"Using register values file \"%s\"",reg_values) ;
 		open_py(reg_values) ;
 
+
 		// get the FW version form ZCU106
-		ser_write("b\n") ;
-		for(int i=0;i<3;i++) {
-			char buff[128] ;
+		for(int i=0;i<10;i++) {		// flush junk
+			ser_ln_read(buff) ;
+		}
+		ser_write("\n\n") ;		// a few ENTERs
+		usleep(1000) ;
+		ser_write("b\n") ;		// send the version comman
+		for(int i=0;i<3;i++) {		// read the 3 version strings
 			ser_ln_read(buff) ;
 			LOG(INFO,"%s",buff) ;
 		}
 	
-		fw_flavor = rd(7) ;
-		LOG(INFO,"FW flavor: 0x%08X",fw_flavor) ;
 
 		// reset
-		wr(2,0) ;	// reset last run
+		wr(2,0) ;	// reset last run, just in case
 
 		wr(0,0) ;	// reset the ASIC
 
-		// if we want to use the new, FCMD mode (1<<2) we also want to tri-state (1<<3) legacy signals
 
-		if(sel_fcmd) sel_fcmd = (1<<3) | (1<<2) ;
-
-		wr(0,sel_fcmd) ;	// set SEL_FCMD while keeping the ASIC in reset
-		usleep(1000) ;		// wait a bit...
-		wr(0,sel_fcmd|3) ;	// enable ASIC 
-		usleep(100000) ;		// wait a bit more
-
-		// load default register values
-		for(int i=0;i<reg_cou;i++) {
-			u_int reg = regs[i].reg ;
-
-			if(reg<0x4000) continue ;	// skip writes to single pixel!
-
-			ret = i2c_wr(reg,regs[i].val) ;
-
-			printf("I2C %d: write 0x%04X = 0x%02X\n",i,regs[i].reg,regs[i].val) ;
-		}
-
-
-//		i2c_wr(0x400C,0) ;	// pulser
-
-		u_char msk ;
-
-		msk = 0 ;
-
-		if(lane_mask&1) {
-			msk |= 0x0F ;
-		}
-		if(lane_mask&2) {
-			msk |= 0xF0 ;
-		}
-
-		i2c_wr(0x4013,msk) ;	// enable lanes aka columns 0..7
-
-		msk = 0 ;
-
-		if(lane_mask&4) {
-			msk |= 0x0F ;
-		}
-		if(lane_mask&8) {
-			msk |= 0xF0 ;
-		}
-
-		i2c_wr(0x4014,msk) ;	// enable lanes aka columns 0..7
-
-		msk = 0 ;
-
-		if(lane_mask&0x10) {
-			msk |= 0x0F ;
-		}
-		if(lane_mask&0x20) {
-			msk |= 0xF0 ;
-		}
-
-		i2c_wr(0x4015,msk) ;	// enable lanes aka columns 0..7
-
-		msk = 0 ;
-
-		if(lane_mask&0x40) {
-			msk |= 0x0F ;
-		}
-		if(lane_mask&0x80) {
-			msk |= 0xF0 ;
-		}
-
-		i2c_wr(0x4016,msk) ;	// enable lanes aka columns 0..7
-
-
-		LOG(INFO,"Enabling lanes 0x%02X",lane_mask) ;
-
-		u_char vth_corr = 0 ;
-		u_char vref = 0 ;
-
-		// sanity protection
-		vth_corr &= 0x7F ;
-	
-
-		// DEFAULT for ALL pixels
-		i2c_wr(0x0001,0x80|vth_corr) ;	// 0x80 | vth_corr
-		i2c_wr(0x0002,vref) ;		// vref
-
-		if(run_type==2) {	// pulser
-			i2c_wr(0x0003,0x04) ;	// on_ctest if 0x04 aka use pulser
-		}
-		else {
-			i2c_wr(0x0003,0x00) ;	// on_ctest is off for other modes
-		}
-		i2c_wr(0x0004,0x01) ;	// from Kinaan
-		i2c_wr(0x0005,0x20) ;	// from Kinaan
-
-
-		// read those values back...
-		for(int i=0;i<=0x1B;i++) {
-			int reg = 0x4000+i ;
-			u_char shd = i2c_glo_shadow[i] ;
-
-			ret = i2c_rd(reg) ;
-			printf("I2C read 0x%04X = should 0x%02X, is 0x%02X\n",reg,shd,ret) ;
-		}
-
-
-		// set the length of the EN_ACQ pulse as well as the delay to CMDPULSE
-		//wr(3,12<<8|4) ;	// lo 8bits: len of EN_ACK _after_ CMDPULSE, hi 8bits: delay from EN_ACQ to CMDPULSE
-
-
+		// setup ZCU registers while the ASIC is in reset
 		{
 		int cmd_mode = 4 ;		// 4: DON'T issue CMDPULSE, 0: issue CMDPULSE
 		int en_ack_to_cmd = 12 ;	// any length longer than at least 8
@@ -520,30 +470,217 @@ int main(int argc, char *argv[])
 		wr(2,cmd_mode<<1) ;
 		}
 
+
+		// new FW features
 		if(fw_flavor != 0xDEADC0DE) {
-			LOG(WARN,"New FW 0x%08X",fw_flavor) ;
+			u_int v ;
 
-			wr(4,6510) ;	// word count
+			LOG(WARN,"New FW 0x%08X: EXPERIMENTAL",fw_flavor) ;
 
-			u_int v = 0 ;
+			switch(asic_type) {
+			case 1 :
+			default :
+				wr(4,6510) ;	// word count
+				break ;
+			case 0 :
+				wr(4,820) ;	// word count
+				break ;
+			}
 
-			//v = rd(1) ;
+
+
+			// set either to use DOUT0 or SDOUT
+			v = rd(0) ;
+
+			if(use_dout0) v |= (1<<6) ;
+			else v &= ~(1<<6) ;
+
+			wr(0,v) ;
 			
 
-			//LOG(NOTE,"reg 1: 0x%X",v) ;
+			v = 0 ;
+			v |= (0<<1) ;		// delay from CLK40 to start of data; typically 1 or 0
+			v |= (asic_type<<4) ;	// ROC tyoe
 
-			v |= (2<<1) ;	// delay from CLK40 to start of data
-			v |= (1<<4) ;	// ROC tyoe
-			v |= (0<<8) ;	// readout type
+			switch(run_type) {
+			default :
+			case 1:
+				v |= (0<<8) ;		// pedestal=0
+				break ;
+			case 2 :
+				v |= (1<<8) ;		// CMDPULSE=1,
+				break ;
+			}
 
-			wr(1,v) ;
 
-			wr(1,v|(1<<11)) ;	// reset delay counter
-			usleep(10000) ;
-			wr(1,v) ;
+			wr(1,v) ;		// first write the values
+
+			wr(1,v|(1<<11)) ;	// and then reset delay counter for the values to take...
+			usleep(1000) ;
+			wr(1,v) ;		// clear reset delay 
+
 		}
 
-	}
+
+		// and now other ASIC-dependent setups
+		switch(asic_type) {
+
+		char buff[128] ;
+
+		case 0:	// EICROC0A
+
+			wr(0,(1<<4)|(1<<5)|(1<<6)) ;		// set appropriate bits; leave in reset
+			usleep(1000) ;
+			wr(0,(1<<4)|(1<<5)|(1<<6)|0x3) ;	// out of reset, keep bits
+
+			ser_write("2d 0x08\n") ;	// new: I2C address is different than EICROC1's 0x40
+			ser_ln_read(buff) ;		// read but ignore the return string...
+
+			usleep(100000) ;		// wait a bit after reset
+
+			// dump global regs
+			for(int i=0x4000;i<=i2c_last;i++) {	// 4012
+				u_short v = i2c_rd(i) ;
+
+				LOG(DBG,"EICROC0A defaults reg 0x%02X = 0x%02X",i,v) ;
+
+			}
+
+			for(int i=0;i<reg_cou;i++) {
+				u_int reg = regs[i].reg ;
+
+				if(reg<0x4000) continue ;	// skip writes to single pixel!
+
+				ret = i2c_wr(reg,regs[i].val) ;
+
+				LOG(NOTE,"I2C %d: write 0x%04X = 0x%02X",i,regs[i].reg,regs[i].val) ;
+			}
+
+			break ;
+
+		case 1 :	// EICROC1
+
+			if(sel_fcmd) sel_fcmd = (1<<3) | (1<<2) ;
+
+			wr(0,sel_fcmd) ;	// set SEL_FCMD while keeping the ASIC in reset
+			usleep(1000) ;		// wait a bit...
+			wr(0,sel_fcmd|3) ;	// enable ASIC 
+			usleep(100000) ;		// wait a bit more
+
+
+
+			// load default register values
+			for(int i=0;i<reg_cou;i++) {
+					u_int reg = regs[i].reg ;
+
+					if(reg<0x4000) continue ;	// skip writes to single pixel!
+
+					ret = i2c_wr(reg,regs[i].val) ;
+
+					LOG(NOTE,"I2C %d: write 0x%04X = 0x%02X",i,regs[i].reg,regs[i].val) ;
+			}
+
+
+
+			//		i2c_wr(0x400C,0) ;	// pulser
+
+			// setup EICROC1 lanes
+			u_char msk ;
+
+			msk = 0 ;
+
+			if(lane_mask&1) {
+				msk |= 0x0F ;
+			}
+			if(lane_mask&2) {
+				msk |= 0xF0 ;
+			}
+
+			i2c_wr(0x4013,msk) ;	// enable lanes aka columns 0..7
+
+			msk = 0 ;
+
+			if(lane_mask&4) {
+				msk |= 0x0F ;
+			}
+			if(lane_mask&8) {
+				msk |= 0xF0 ;
+			}
+
+			i2c_wr(0x4014,msk) ;	// enable lanes aka columns 0..7
+
+			msk = 0 ;
+
+			if(lane_mask&0x10) {
+				msk |= 0x0F ;
+			}
+			if(lane_mask&0x20) {
+				msk |= 0xF0 ;
+			}
+
+			i2c_wr(0x4015,msk) ;	// enable lanes aka columns 0..7
+
+			msk = 0 ;
+
+			if(lane_mask&0x40) {
+				msk |= 0x0F ;
+			}
+			if(lane_mask&0x80) {
+				msk |= 0xF0 ;
+			}
+
+			i2c_wr(0x4016,msk) ;	// enable lanes aka columns 0..7
+
+
+			LOG(INFO,"Enabling lanes 0x%02X",lane_mask) ;
+
+			// defaults
+			u_char vth_corr = 0 ;
+			u_char vref = 0 ;
+
+		
+			// sanity protection
+			vth_corr &= 0x7F ;
+	
+
+			// DEFAULT for ALL pixels: MUST be done last due to metal-layer I2C bug
+			LOG(INFO,"Setting per-pixel defaults: Vref %d, Vth %d",vref,vth_corr) ;
+
+			i2c_wr(0x0001,0x80|vth_corr) ;	// 0x80 | vth_corr
+			i2c_wr(0x0002,vref) ;		// vref
+
+			if(run_type==2) {	// pulser
+				i2c_wr(0x0003,0x04) ;	// on_ctest if 0x04 aka use pulser
+			}
+			else {
+				i2c_wr(0x0003,0x00) ;	// on_ctest is off for other modes
+			}
+			i2c_wr(0x0004,0x01) ;	// from Kinaan
+			i2c_wr(0x0005,0x20) ;	// from Kinaan
+
+
+
+			break ;
+		}
+
+
+		// common to all ASICs
+		// read those values back...
+		for(int i=0x4000;i<=i2c_last;i++) {
+			u_char shd = i2c_glo_shadow[i-0x4000] ;
+
+			ret = i2c_rd(i) ;
+			if(ret != shd) {
+				LOG(WARN,"I2C read 0x%04X = should 0x%02X, is 0x%02X",i,shd,ret) ;
+			}
+			else {
+				LOG(NOTE,"I2C read 0x%04X = should 0x%02X, is 0x%02X",i,shd,ret) ;
+			}
+		}
+
+
+
+	} // if(mode...)
 	
 
 	if(mode&4) {	// special post-configuration thing...
@@ -613,7 +750,7 @@ int main(int argc, char *argv[])
 			printf("Evt %d: %d = 0x%s\n",e,i,buff) ;
 
 			// look for end of trailer
-			if(fw_flavor==0xDEADC0DE) {
+			if(fw_flavor==0xDEADC0DE) {	// old Jun 24, 2026 FW
 				if(strcmp(buff,"8FFFFFFF")==0) break ;
 			}
 			else {	// if(fw_flavor==0x09112026) {

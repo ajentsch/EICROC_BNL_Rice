@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include <LOG/rtsLog.h>
+volatile int rtsLogLevel = 0 ;
 
 #include "eicroc_decoder_c.h"
 
@@ -47,12 +48,6 @@ int main(int argc, char *argv[])
 
 
 	if(ret==3) {	// flafs end of event, let's print the data...
-		int c_max ;
-
-
-		// limit columns for DOUT style vs SDOUT
-		if(decoder.is_fcmd) c_max = 32 ;	// SDOUT
-		else c_max = 4 ;			// DOUT
 
 		switch(out_format) {
 		case 0 :
@@ -64,12 +59,12 @@ int main(int argc, char *argv[])
 				printf("H 0x%08X, T 0x%08X\n",decoder.hdr[i],decoder.trl[i]) ;
 			}
 
-			for(int c=0;c<c_max;c++) {
+			for(int c=0;c<decoder.col_max;c++) {
 
 				if(decoder.lane_had_bits[c/4]) ;	// skip lanes WO data
 				else continue ;
 
-				for(int r=0;r<32;r++) {
+				for(int r=0;r<decoder.row_max;r++) {
 					printf("Col %2d, row %2d: hdr 0x%02X\n",c,r,decoder.pixel[c][r].hdr) ;
 
 					for(int t=0;t<8;t++) {
@@ -84,12 +79,12 @@ int main(int argc, char *argv[])
 			break ;
 		default :	// old ana_zcu
 
-			for(int c=0;c<c_max;c++) {
+			for(int c=0;c<decoder.col_max;c++) {
 
 				if(decoder.lane_had_bits[c/4]) ;	// skip lanes WO data
 				else continue ;
 
-				for(int r=0;r<32;r++) {
+				for(int r=0;r<decoder.row_max;r++) {
 					for(int t=0;t<8;t++) {
 						printf("%d %2d %2d %d %3d %3d %d\n",decoder.evt,c,r,t,
 						       decoder.pixel[c][r].adc[t],

@@ -9,7 +9,7 @@ int eicroc_decoder_c::evt_start()
 	state = 0 ;
 	l_cou = 0 ;
 	trl_cou = 0 ;
-
+	
 	memset(lane_bits,0,sizeof(lane_bits)) ;
 	memset(pixel,0,sizeof(pixel)) ;
 
@@ -17,6 +17,8 @@ int eicroc_decoder_c::evt_start()
 	memset(trl,0xFF,sizeof(trl)) ;
 
 	memset(lane_had_bits,0,sizeof(lane_had_bits)) ;
+
+	dout_bits = 0 ;
 
 	evt++ ;
 
@@ -48,9 +50,41 @@ int eicroc_decoder_c::decode(char *buff)
 
 	case 0 :	// wait for header
 		hdr[l_cou] = datum ;
-		if(l_cou==1) {
-			state = 1 ;
-			l_cou = 0 ;
+		if(l_cou==1) {		// end-of-header, just 2 words
+			if(hdr[0]!=0x87654321) {
+				word_cou = hdr[1]&0xFFFF ;
+				fmt_type = (hdr[1]>>16)&0xFF ;
+				asic_type = (hdr[1]>>28)&0xF ;
+				bit_cou = 0 ;
+
+				if(asic_type==0) {	// EICROC0
+					col_max = 1 ;
+					row_max = 16 ;
+					state = 11 ;	// for EICROC0
+					is_fcmd = 0 ;	// override, if I can...
+				}
+				else {			// can only be EICROC1 so far
+						
+					col_max = 32 ;
+					row_max = 32 ;
+					bit_cou = 205*128 ;
+					state = 1 ;
+				}
+			}
+			else {	// OLD FW
+
+				word_cou = 8000 ;
+				fmt_type = 0 ;
+				asic_type = 1 ;
+				bit_cou = 203*128 ;
+
+				col_max = 32 ;
+				row_max = 32 ;
+
+				state = 1 ;
+			}
+
+			l_cou = 0 ;	// zap word count
 			return 0 ;
 		}
 		else {
@@ -58,7 +92,108 @@ int eicroc_decoder_c::decode(char *buff)
 			return 0 ;
 		}
 		break ;
-	case 1 :	// data
+	case 11 :
+		for(int b=0;b<32;b++) {
+			if(datum&(1<<b)) {
+				dout[dout_bits] = 1  ;
+			}
+			else {
+				dout[dout_bits] = 0 ;
+			}
+			dout_bits++ ;
+		}
+		l_cou++ ;
+
+		if(l_cou>=word_cou) state = 22 ;
+		
+		break ;
+	case 22 :
+		{
+		int b_start = -1 ;
+		int c_cou = 0 ;
+		u_char byte[30] ;
+
+		for(int b=0;b<8;b++) {
+			if(dout[b]==1) {
+				b_start = b ;
+				lane_had_bits[0] = 1 ;
+				break ;
+			}
+		}
+			
+		b_start += 3 ;		// add a few bits to center around the data bit
+		int och_cou = 7 ;
+		int och = 0 ;
+		int row = 0 ;
+
+		for(int b=b_start;b<dout_bits;b+=8) {
+			if(dout[b]==1) {
+				och |= (1<<och_cou) ;
+			}
+			
+			//for(int i=0;i<8;i++) {
+			//	printf("...%d %d\n",b+i,dout[b+i]) ;
+			//}
+
+			if(och_cou==0) {
+				byte[c_cou] = och ;
+
+				//printf("%d = 0x%02X\n",c_cou,och) ;
+				och_cou= 7 ;
+				och = 0 ;
+				
+				if(c_cou==24) {
+
+					pixel[0][row].hdr = byte[0] ;
+
+					//printf("Row %d, hdr 0x%02X\n", row, byte[0]) ;
+
+					u_int word  = 0 ;
+					u_int tb = 0 ;
+
+					for(int i=1;i<=24;i++) {
+						int ix = (i-1)%3 ;
+
+						word |= byte[i]<<((2-ix)*8) ;
+
+						if(ix==2) {
+							int adc = (word>>13)&0xFF ;
+							int tdc = word & 0x3FF ;
+							int disc = (word&(1<<12))?1:0 ;
+							
+							//printf("... tb %d: ADC %d, TDC %d, disc %d\n",
+							//       tb,adc,tdc,disc) ;
+
+							pixel[0][row].adc[tb] = adc ;
+							pixel[0][row].tdc[tb] = tdc ;
+							pixel[0][row].discr[tb] = disc ;
+
+							tb++ ;
+							word = 0 ;
+						}
+					}
+
+					b +=24 ;
+					c_cou = 0 ;
+					row++ ;
+					if(row==16) {
+						//LOG(TERR,"to state 2") ;
+						state = 2 ;	// grab trailer
+						goto re_state ;
+					}
+				}
+				else c_cou++ ;
+			}
+			else och_cou-- ;
+
+		}
+
+		}
+
+
+		break ;
+	case 1 :
+
 		for(int b=0;b<4;b++) {
 		int bit ;
 		int l_max ;
@@ -87,13 +222,20 @@ int eicroc_decoder_c::decode(char *buff)
 
 		l_cou++ ;
 
-		if(lane_bits[0]>=203*128) {
-			state = 2 ;	// I read all the bits
+		if(bit_cou) {
+			if(lane_bits[0]>=bit_cou) {
+				state = 2 ;	// I read all the bits
+			}
+		}
+		else {
+			if(l_cou>=word_cou) {
+				state = 2 ;
+			}
 		}
 
 		break ;
-	case 2 :	// wait for the event to end...
-		//printf("Trls %d:  0x%08X\n",l_cou,datum) ;
+	case 2 :	// trailer: wait for the event to end...
+
 		//LOG(TERR,"state2: hdr[0] 0x%08X, datum 0x%08X, trl cou %d",hdr[0],datum,trl_cou) ;
 		
 		
@@ -124,6 +266,7 @@ int eicroc_decoder_c::decode(char *buff)
 		//LOG(TERR,"State 3") ;
 		//printf("+++ State 3\n") ;
 
+		if(asic_type==0) return 3 ;
 		
 		for(int lx=0;lx<8;lx++) {	// for each lane
 
@@ -167,11 +310,11 @@ int eicroc_decoder_c::decode(char *buff)
 						if(byte != 0xAC) {
 							if(is_fcmd==0) {	// skip other columns for SDOUT
 								if(column<4) {
-									LOG(ERR,"Header error: CR %d:%d = 0x%02X",column,row,byte) ;
+									LOG(ERR,"Header error: evt %d: CR %d:%d = 0x%02X",evt,column,row,byte) ;
 								}
 							}
 							else {
-								LOG(ERR,"Header error: CR %d:%d = 0x%02X",column,row,byte) ;
+								LOG(ERR,"Header error: evt %d: CR %d:%d = 0x%02X",evt,column,row,byte) ;
 							}
 						}
 					}
