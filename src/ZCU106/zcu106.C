@@ -451,7 +451,7 @@ int main(int argc, char *argv[])
 		// reset
 		wr(2,0) ;	// reset last run, just in case
 
-		wr(0,0) ;	// reset the ASIC
+		wr(0,0) ;	// reset the ASIC and keep in reset
 
 
 		// setup ZCU registers while the ASIC is in reset
@@ -549,12 +549,21 @@ int main(int argc, char *argv[])
 			for(int i=0;i<reg_cou;i++) {
 				u_int reg = regs[i].reg ;
 
-				if(reg<0x4000) continue ;	// skip writes to single pixel!
+				//if(reg<0x4000) continue ;	// skip writes to single pixel!
 
 				ret = i2c_wr(reg,regs[i].val) ;
 
 				LOG(NOTE,"I2C %d: write 0x%04X = 0x%02X",i,regs[i].reg,regs[i].val) ;
 			}
+
+
+
+			// per-pixel DEFAULTs, extracted from Alex' .py
+			i2c_wr(0x0001,0x80) ;
+			i2c_wr(0x0002,0x00) ;	// vref to 0x40 but I will make it 0x00
+			i2c_wr(0x0003,0x04) ;	// on_ctest?
+			i2c_wr(0x0004,0x29) ;	// no idea... EICROC1 was 0x01
+			i2c_wr(0x0005,0x00) ;	// no idea... EICROC1 was 0x20
 
 			break ;
 
