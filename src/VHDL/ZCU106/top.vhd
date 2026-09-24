@@ -104,8 +104,12 @@ signal ila8             : std_logic_vector(0 downto 0) ;
 
 -- differentials
 signal dout0            : std_logic ;   -- in
+signal dout0_tmp	: std_logic ;
+signal dout0_in		: std_logic ;
+
 signal sdout            : std_logic ;   -- in
 signal sdout_tmp	: std_logic ;	
+signal sdout_in		: std_logic ;	
 
 signal fcmd             : std_logic ;   -- out
 signal cmdpulse         : std_logic ;   -- out
@@ -119,6 +123,7 @@ signal regs_rw		: vec16_t(4 downto 0) ;
 
 signal sdout_8b		: std_logic_vector(7 downto 0) ;
 signal dout_8b		: std_logic_vector(7 downto 0) ;
+signal dout_use		: std_logic_vector(7 downto 0) ;
 
 signal enable_acq	: std_logic := '0' ;
 signal trig_external	: std_logic := '0' ;
@@ -170,11 +175,14 @@ ila8(0) <= sync40 ;		-- sync pulse at 40/2 MHz
 fcmd_i : OBUFDS port map (i=>fcmd, o=>FCMD_P, ob =>FCMD_N) ;
 cmdpulse_i : OBUFTDS port map (i=>cmdpulse, o=>CMDPULSE_P, ob =>CMDPULSE_N, t => regs_rw(0)(3)) ;
 
-dout0_i : IBUFDS port map (i=>DOUT_P0  , ib=>DOUT_N0, o=>dout0) ;
 
 -- EICROC0 or its Testboard have a bug where they swap N & P sides!
+dout0_i : IBUFDS port map (i=>DOUT_P0  , ib=>DOUT_N0, o=>dout0_tmp) ;
+dout0_in <= dout0_tmp when (regs_rw(0)(5)='0') else (not dout0_tmp) ;
+
+
 sdout_i : IBUFDS port map (i=>SDOUT_P, ib=>SDOUT_N, o=>sdout_tmp) ;
-sdout <= sdout_tmp when (regs_rw(0)(5)='0') else (not sdout_tmp) ;
+sdout_in <= sdout_tmp when (regs_rw(0)(5)='0') else (not sdout_tmp) ;
 
 trigout_i : IBUFDS port map (i=>TRIGOUT_P, ib=>TRIGOUT_N, o=>trigout) ;
 
@@ -183,7 +191,60 @@ RST_I2C <= regs_rw(0)(1) ;	-- 0:reset: DEFAULT IS KEEP IN RESET
 SEL_FCMD <= regs_rw(0)(2) ;	-- 0:disable FCMD logic
 
 
-external_trigger <= PMOD_EXT ;
+--=================== Need to cleanup the external pin trigger
+ext_bl: block
+
+type s_type is (S_IDLE, S_PULSE, S_WAIT) ;
+
+signal state		: s_type := S_IDLE ;
+signal t_tmp		: std_logic ;
+signal t_320		: std_logic ;
+
+begin
+
+-- cleanup on fast clock
+process(clk_320, PMOD_EXT)
+begin
+	if(rising_edge(clk_320)) then
+		t_tmp <= PMOD_EXT ;
+		t_320 <= t1 ;
+	end if ;
+end if ;
+
+-- debounce on 40 MHz
+process(clk_40, t_320)
+begin
+	if(rising_edge(clk_40)) then
+
+	external_trigger <= '0' ;	-- default
+
+	case(state) is
+	when S_IDLE =>
+		if(t_320='1') then	-- active high
+			state <= S_PULSE ;
+		end if ;
+	when S_PULSE =>
+		external_trigger <= '1' ;	-- pulse high for 1 40 MHz cycle
+		state <= S_WAIT ;
+	when S_WAIT =>			
+		if(t_320='0') then		-- debounce...
+			state <= S_IDLE ;
+		end if ;
+	end state ;
+
+	end if ;
+end process ;
+
+end block ;
+
+-- cleanup
+process(clk_320)
+begin
+	if(rising_edge(clk_320)) then
+		dout0 <= dout0_in ;
+		sdout <= sdout_in ;
+	end if ;
+end process ;
 
 --===================================
 --======== I2C ======================
@@ -278,7 +339,7 @@ begin
 			gpio_out <= fifo_dout ;
 			fifo_rd_en <= not fifo_empty ;
 		when X"7" =>
-			gpio_out <= X"0607_2026" ;	-- kinda version
+			gpio_out <= X"0911_2026" ;	-- date-like kinda version
 		when others =>
 			gpio_out <= x"DEAD_C0DE" ;
 		end case ;
@@ -350,7 +411,7 @@ signal clk_160_o        : std_logic ;
 
 begin
 
---======== HACK: the output clock is 40 MHz! Not 320! ==========
+
 oddr_320 : oddre1
 port map (
         C => clk_320,
@@ -423,6 +484,7 @@ port map (
 	clk_320	=> clk_320,
 
 	sync40 => sync40,
+	restart => regs_rw(1)(11),
 	
 	delay => regs_rw(1)(3 downto 1),
 
@@ -450,7 +512,8 @@ port map (
 	data_avail => data_avail,
 
 	rdout_type => regs_rw(1)(10 downto 8),
-	external_trigger => external_trigger,
+
+	external_trigger => external_trigger,	-- from MPOD pin, re-registered on 320 MHz clock and pulsed at 40 MHz
 
 	start_acq => enable_acq,	-- to ASIC
 	cmdpulse => cmdpulse,		-- to ASIC, diff
@@ -476,18 +539,21 @@ port map (
 	rd_rst_busy => fifo_rd_rst_busy
 ) ;
 
+dout_use <= sdout_8b when (regs_rw(0)(6)='0') else dout_8b ;
+
 rdout_i : entity work.rdout
 port map (
 	clk_40 => clk_40,
 
 	data_avail 	=> data_avail,	-- in
 	
-	data8_in	=> sdout_8b,	-- in
+	data8_in	=> dout_use,	-- in
 
 	data32_out	=> fifo_din,	-- out
 
 	wr_en		=> fifo_wr_en,	-- out
 
+	is_dout		=> regs_rw(0)(6),
 	words_req	=> regs_rw(4),
 	asic_type	=> regs_rw(1)(7 downto 4),
 	word_aux_0	=> word_aux_0

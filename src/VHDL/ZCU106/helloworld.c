@@ -21,6 +21,7 @@ static volatile u_int *const gpio_rd = (volatile u_int *) 0x40000000 ;
 
 
 static u_int dta[2048] ;
+static u_int fw ;
 
 void wait(int loops)
 {
@@ -703,10 +704,16 @@ int main()
 			break ;
 		case 'R' :
 			val = cpu_read(2) & 0xFFFE ;	// remove bit 0
+			fw = cpu_read(7) ;
 
 			for(int i=0;i<arg[0];i++) {
-				cpu_write(1,1) ;	// reset FIFO
-				cpu_write(1,0) ;
+				u_int vv = cpu_read(1) ;
+
+				vv |= 1 ;
+				cpu_write(1,vv) ;	// reset FIFO
+
+				vv &= ~1 ;
+				cpu_write(1,vv) ;
 
 				cpu_write(2,val|1) ;	// fire
 				
@@ -730,7 +737,12 @@ int main()
 					//}
 
 					w_cou++ ;
-					if(val==0x8FFFFFFF) {
+					if(fw==0xDEADC0DE && val==0x8FFFFFFF) {
+						xil_printf("End event %d after %d\n",i,w_cou) ;
+						break ;
+					}
+					else if(val==0xEEEEEC01) {
+
 						xil_printf("End event %d after %d\n",i,w_cou) ;
 						break ;
 					}

@@ -21,6 +21,7 @@ port (
 	CLK_320		: in std_logic ;
 	SYNC40		: in std_logic ;
 
+	RESTART		: in std_logic ;
 	DELAY		: in std_logic_vector(2 downto 0) ;
 
 	DOUT		: in std_logic ;	-- serial link 0 from the OLD EICROC0
@@ -33,7 +34,7 @@ end deser;
 
 architecture Beh of deser is
 
-type s_type is (S_IDLE, S_SYNC, S_WAIT, S_START) ;
+type s_type is (S_IDLE, S_SYNC, S_WAIT, S_START, S_WAIT_RESTART) ;
 signal state		: s_type := S_IDLE ;
 
 signal d_out8		: std_logic_vector(7 downto 0) ;
@@ -56,7 +57,7 @@ SDOUT_8B <= sd_out8 ;
 
 --========== NOTE: From the Manual: data is MSB first ==========================
 
-process(CLK_320, SYNC40, i_delay)
+process(CLK_320, SYNC40, i_delay, RESTART)
 begin
 	if(rising_edge(CLK_320)) then
 	
@@ -91,7 +92,9 @@ begin
 		d_out8_tmp(cou) <= DOUT ;
 
 
-		if(cou=7) then
+		if(RESTART='1') then
+			state <= S_WAIT_RESTART ;		
+		elsif(cou=7) then
 			-- latch
 			sd_out8 <= SDOUT & sd_out8_tmp(6 downto 0) ;
 			d_out8 <= DOUT & d_out8_tmp(6 downto 0) ;
@@ -99,6 +102,11 @@ begin
 			cou <= 0 ;
 		else
 			cou <= cou+1 ;
+		end if ;
+	when S_WAIT_RESTART =>
+		cou <= 0 ;
+		if(RESTART='0' and SYNC40='0') then
+			state <= S_IDLE ;
 		end if ;
 	end case ;
 	end if ;

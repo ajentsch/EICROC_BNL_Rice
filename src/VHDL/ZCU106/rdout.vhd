@@ -25,6 +25,8 @@ port (
 
 	WR_EN		: out std_logic ;
 
+	IS_DOUT		: in std_logic ;
+
 	WORDS_REQ	: in std_logic_vector(15 downto 0) ;
 	ASIC_TYPE	: in std_logic_vector(3 downto 0) ;
 	WORD_AUX_0	: in std_logic_vector(31 downto 0) 
@@ -48,18 +50,20 @@ signal trl	: vec32_t(7 downto 0) := (others => (others => '0')) ;
 signal cou	: integer range 0 to 127000 ;
 
 signal asic_word_cou	: integer range 0 to 127000 ;
-signal fmt_type		: std_logic_vector(11 downto 0) ;
+signal fmt_type		: std_logic_vector(7 downto 0) ;
 
 begin
 
 
 asic_word_cou <= to_integer(unsigned(WORDS_REQ)) ;
-fmt_type <= x"000" ;
+fmt_type <= x"00" ;	-- so far...
 
 hdr(0) <= x"ABCD_EC01" ;
-hdr(1)(31 downto 16) <= ASIC_TYPE & fmt_type ;		-- normally: geo_id
+hdr(1)(15 downto 0) <= WORDS_REQ ;
+hdr(1)(31 downto 16) <= ASIC_TYPE & B"000" & IS_DOUT & fmt_type ;		-- normally: geo_id
 
--- not used below!!!
+
+-- not used below because I can't have a header longer than 2 words
 hdr(2) <= (others => '0') ;	-- word cou
 hdr(3) <= (others => '0') ;	-- status
 hdr(4) <= (others => '0') ;	-- xing
@@ -67,8 +71,10 @@ hdr(5) <= (others => '0') ;	-- xing
 hdr(6) <= WORD_AUX_0 ;	-- type
 hdr(7) <= x"FEED_EC01" ;
 
+-- trailer is 8 words
 trl(0) <= x"CDEF_EC01" ;
-trl(1)(31 downto 16) <= ASIC_TYPE & fmt_type ;
+trl(1)(15 downto 0) <= WORDS_REQ ;
+trl(1)(31 downto 16) <= ASIC_TYPE & B"000" & IS_DOUT & fmt_type ;
 
 trl(2) <= (others => '0') ;			-- unused
 trl(3)(31 downto 8) <= (others => '0') ;	-- status in lower 8 bits
@@ -79,8 +85,8 @@ trl(7) <= x"EEEE_EC01" ;
 	
 DATA32_OUT <= fifo_d ;
 
-hdr(1)(15 downto 0) <= WORDS_REQ ;
-trl(1)(15 downto 0) <= WORDS_REQ ;
+
+
 
 process(CLK_40, DATA_AVAIL, DATA8_IN, asic_word_cou)
 begin
