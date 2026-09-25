@@ -57,6 +57,8 @@ int eicroc_decoder_c::decode(char *buff)
 				asic_type = (hdr[1]>>28)&0xF ;
 				bit_cou = 0 ;
 
+				
+
 				if(asic_type==0) {	// EICROC0
 					col_max = 1 ;
 					row_max = 16 ;
@@ -67,7 +69,7 @@ int eicroc_decoder_c::decode(char *buff)
 						
 					col_max = 32 ;
 					row_max = 32 ;
-					bit_cou = 205*128 ;
+					bit_cou = 203*128 ;
 					state = 1 ;
 				}
 			}
@@ -250,8 +252,8 @@ int eicroc_decoder_c::decode(char *buff)
 		else if(trl_cou) {
 			trl[trl_cou++] = datum ;
 			if(trl_cou==8) {
-				if(trl[1]&1) {
-					LOG(ERR,"Timeout") ;
+				if(trl[3]&0xFF) {
+					LOG(ERR,"Evt %d: timeout, no data was sent",evt) ;
 				}
 				state = 3 ;
 				goto re_state ;		// continue to state==3 without a new call

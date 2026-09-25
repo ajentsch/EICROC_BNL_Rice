@@ -474,6 +474,7 @@ int main(int argc, char *argv[])
 		// new FW features
 		if(fw_flavor != 0xDEADC0DE) {
 			u_int v ;
+			int clk40_delay = 0 ;
 
 			LOG(WARN,"New FW 0x%08X: EXPERIMENTAL",fw_flavor) ;
 
@@ -481,9 +482,11 @@ int main(int argc, char *argv[])
 			case 1 :
 			default :
 				wr(4,6510) ;	// word count
+				clk40_delay = 2 ;
 				break ;
 			case 0 :
 				wr(4,820) ;	// word count
+				clk40_delay = 0 ;
 				break ;
 			}
 
@@ -499,7 +502,7 @@ int main(int argc, char *argv[])
 			
 
 			v = 0 ;
-			v |= (0<<1) ;		// delay from CLK40 to start of data; typically 1 or 0
+			v |= (clk40_delay<<1) ;		// delay from CLK40 to start of data; typically 1 or 0
 			v |= (asic_type<<4) ;	// ROC tyoe
 
 			switch(run_type) {
@@ -689,7 +692,7 @@ int main(int argc, char *argv[])
 
 
 
-	} // if(mode...)
+	} // if(mode & 1)
 	
 
 	if(mode&4) {	// special post-configuration thing...
@@ -737,7 +740,7 @@ int main(int argc, char *argv[])
 	}
 
 	// VERY LAST
-	if(mode&2) {
+	if(mode & 2) {
 		// RUN_START
 
 		fw_flavor = rd(7) ;
