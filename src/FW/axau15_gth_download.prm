@@ -1,0 +1,14 @@
+===================================
+Configuration Memory information
+===================================
+File Format        BIN
+Interface          SPIX4
+Size               32M
+Start Address      0x00000000
+End Address        0x01FFFFFF
+Checksum           0xC5425739
+Fill Value         0xFF
+
+Addr1         Addr2         Date                    File(s)                    Checksum
+0x00000000    0x003C1C9F    Sep 29 14:25:23 2026    axau15_gth_download.bit    0x0322DA99
+File Checksum Total                                                            0x0322DA99

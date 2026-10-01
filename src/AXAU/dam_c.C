@@ -1979,7 +1979,8 @@ int dam_c::init()
 {
 	const char *c_board = "???" ;
 
-	lpgbt_gpio_cached = (1<<10)|(1<<11)|(1<<8) ;
+	// RBv1 GPIO
+	lpgbt_gpio_cached = (1<<10)|(1<<11)|(1<<8) ;	// 0x0D00; a reasonable default for all
 
 	switch(lpgbt_board_type) {
 	case 0 :	// ETL RB2
@@ -1989,6 +1990,16 @@ int dam_c::init()
 		c_board = "ETL RB3" ;
 		break ;
 	case 2:		// FTOF RBv1
+		lpgbt_gpio_cached = (1<<10)|(1<<11)|(1<<8) ;	// 0x0D00
+
+		// 8: RESET1: RESETB on EICROC1; active lo
+		// 10: RESETVTRX, active low: MUST BE 1
+		// 11: RESET2: RST_I2C on EICROC1; active lo
+		// 12: DISVTRX, active high: MUST be 0!
+		// 15: GPIO15: SEL_FCMD in EICROC1; should be 1 ;
+
+
+
 		c_board = "FTOF RBv1" ;
 		break ;
 	default :
@@ -1996,12 +2007,20 @@ int dam_c::init()
 		break ;
 	}
 
+	// check for power-up of AXAU15
+	if(reg_r(15)==0xABCD1234) ;	// 
+	else {	// just after power-up: zap em all
+		LOG(WARN,"AXAU15 seems to have been powered up (0x%08X)",reg_r(15)) ;
+		for(int i=1;i<16;i++) reg_w(i,0) ;
+		reg_w(15,0xABCD1234) ;	// set marker
+	}
 
 	LOG(INFO,"DAM %d:init: board type %s(%d), lpgbt id 0x%02X, default GPIO 0x%04X",
 	    dam_ix, c_board, lpgbt_board_type,lpgbt_dev_id,lpgbt_gpio_cached) ;
 
 
-	
+	if(usb_desc>=0) LOG(WARN,"Using USB as the interface") ;
+
 	return 0 ;
 
 }
