@@ -369,7 +369,8 @@ int main(int argc, char *argv[])
 		reg_values = optarg ;
 		break ;
 	case 'A' :	
-		asic_type = atoi(optarg) ;
+		if(sscanf(optarg,"0x%X",&asic_type)==1) ;	// to support hex 0x.. numbers
+		else asic_type = atoi(optarg) ;
 		break ;
 	case '0' :
 		use_dout0 = 1 ;
@@ -398,8 +399,8 @@ int main(int argc, char *argv[])
 		LOG(INFO,"FW flavor: 0x%08X",fw_flavor) ;
 
 		switch(asic_type) {
-		case 0 :
-			c_asic = "EICROC0A" ;
+		case 10 :
+			c_asic = "EICROC" ;
 			use_dout0 = 1 ;	// automatic override!
 			sel_fcmd = 0 ;	// automatic override
 			lane_mask = 1 ;	// automatic override
@@ -409,12 +410,30 @@ int main(int argc, char *argv[])
 			if(reg_values==0) reg_values = "eicroc0_defaults.py" ;
 
 			if(fw_flavor==0xDEADC0DE) {
-				LOG(ERR,"Old FW can't work with EICROC0A") ;
+				LOG(CRIT,"Old FW can't work with EICROC") ;
 				return -1 ;
 			}
 
 			break ;
-		case 1 :
+		case 0 :
+			c_asic = "EICROC0A" ;
+			use_dout0 = 1 ;	// automatic override!
+			sel_fcmd = 0 ;	// automatic override
+			lane_mask = 1 ;	// automatic override
+
+			i2c_last = 0x4012 ;
+
+			if(reg_values==0) reg_values = "eicroc0a_defaults.py" ;
+
+			if(fw_flavor==0xDEADC0DE) {
+				LOG(CRIT,"Old FW can't work with EICROC0A") ;
+				return -1 ;
+			}
+
+			break ;
+		case 2 :	// EICROC2 version 0... etc
+		case 9 :	// EICROC1 with metal fix
+		case 1 :	// EICROC1
 		default :
 			c_asic = "EICROC1" ;
 
@@ -485,6 +504,7 @@ int main(int argc, char *argv[])
 				clk40_delay = 2 ;
 				break ;
 			case 0 :
+			case 10 :
 				wr(4,820) ;	// word count
 				clk40_delay = 0 ;
 				break ;
@@ -531,7 +551,7 @@ int main(int argc, char *argv[])
 		char buff[128] ;
 
 		case 0:	// EICROC0A
-
+		case 10 : // EICROC0
 			wr(0,(1<<4)|(1<<5)|(1<<6)) ;		// set appropriate bits; leave in reset
 			usleep(1000) ;
 			wr(0,(1<<4)|(1<<5)|(1<<6)|0x3) ;	// out of reset, keep bits
@@ -545,7 +565,7 @@ int main(int argc, char *argv[])
 			for(int i=0x4000;i<=i2c_last;i++) {	// 4012
 				u_short v = i2c_rd(i) ;
 
-				LOG(DBG,"EICROC0A defaults reg 0x%02X = 0x%02X",i,v) ;
+				LOG(DBG,"EICROC0%s defaults reg 0x%02X = 0x%02X",asic_type==0?"A":"",i,v) ;
 
 			}
 
