@@ -28,5 +28,6 @@ decoder.o: eicroc_decoder_c.h
 eicroc_decoder_c.o: ../LOG/rtsLog.h
 eicroc_decoder_c.o: eicroc_decoder_c.h
 zcu106.o: ../LOG/rtsLog.h
+zcu106.o: ../ZCU106/zcu106.h
 zcu106_c.o: ../LOG/rtsLog.h
 zcu106_c.o: zcu106_c.h

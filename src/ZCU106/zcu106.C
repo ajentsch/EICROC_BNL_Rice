@@ -25,6 +25,8 @@
 #include <LOG/rtsLog.h>
 volatile int rtsLogLevel = 0 ;
 
+#include <ZCU106/zcu106.h>
+
 static const char *usb_dev = "/dev/ttyUSB3" ;
 
 static int ser_usb ;	// device
@@ -32,9 +34,10 @@ static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global regist
 static u_int fw_flavor ;
 static int asic_type = 1 ;			// EICROC0A, EICROC1...
 
+extern int alex_run(u_int mode, int asic_type, int asic_mode) ;
 
 
-int ser_open()
+static int ser_open()
 {	
 //	int baud = 230400 ;
 	int baud = 115200 ;
@@ -73,7 +76,7 @@ int ser_open()
 
 }
 
-int ser_read(u_char *ch)
+static int ser_read(u_char *ch)
 {
 	int ret = read(ser_usb,ch,1) ;
 	if(ret<0) {
@@ -90,7 +93,7 @@ int ser_read(u_char *ch)
 	return ret ;
 }
 
-int ser_ln_read(char *buff)
+static int ser_ln_read(char *buff)
 {
 	char *c = buff ;
 	u_char ch ;
@@ -124,7 +127,7 @@ int ser_ln_read(char *buff)
 }
 
 
-int ser_write_b(const void *buffer, int bytes)
+static int ser_write_b(const void *buffer, int bytes)
 {
 	int ret = write(ser_usb,buffer,bytes) ;
 
@@ -137,7 +140,7 @@ int ser_write_b(const void *buffer, int bytes)
 	return ret ;
 }
 
-int ser_write(const char *buffer)
+static int ser_write(const char *buffer)
 {
 	int bytes = strlen(buffer) ;
 	return ser_write_b(buffer,bytes) ;
@@ -159,7 +162,7 @@ u_int rd(u_int reg)
 		return val ;
 	}
 
-	perror("rd") ;
+	LOG(ERR,"rd") ;
 	return 0 ;
 }
 
@@ -178,7 +181,7 @@ u_int wr(u_int reg, u_int val)
 		return val ;
 	}
 
-	perror("wr") ;
+	LOG(ERR,"wr") ;
 	return 0 ;
 }
 
@@ -205,7 +208,7 @@ u_short i2c_wr(u_short reg, u_char val)
 		return err ;
 	}
 
-	perror("i2c_wr") ;
+	LOG(ERR,"i2c_wr") ;
 	return 0xFFFF ;
 
 }
@@ -226,24 +229,77 @@ u_short i2c_rd(u_short reg)
 		return val ;
 	}
 
-	perror("i2c_rd") ;
+	LOG(ERR,"i2c_rd") ;
 	return 0xFFFF ;
 	
 }
 
 
-static int reg_cou ;
-static struct reg_t {
-	u_short reg ;
-	u_char val ;
-} regs[1034] ;
+int run_asic(FILE *f, int nevents)
+{
+	u_int fw_flavor = rd(7) ;
+	time_t now ;
+
+	LOG(INFO,"Readout: %d events, FW flavor 0x%08X",nevents,fw_flavor) ;
+
+	for(int e=0;e<nevents;e++) {
+		char cmd[16] ;
+
+		int w_cou = 0 ;
+		now = time(0) ;
+
+		sprintf(cmd,"R %d\n",1) ;	// just do R 1 for now
+		ser_write(cmd) ;
+
+		for(int i=0;i<10000;i++) {
+			char buff[128] ;
+			ser_ln_read(buff) ;
+
+			//printf("... %s",buff) ;
+
+			if(strstr(buff,"ERR")) {
+				LOG(ERR,"Event %d: %s",e,buff) ;
+				goto evt_done ;
+			}
+
+			if(strstr(buff,"End")) continue ;
+			
+			w_cou++ ;
+			fprintf(f,"Evt %d: %d = 0x%s\n",e,i,buff) ;
+
+			// look for end of trailer
+			if(fw_flavor==0xDEADC0DE) {	// old Jun 24, 2026 FW
+				if(strcmp(buff,"8FFFFFFF")==0) break ;
+			}
+			else {	// if(fw_flavor==0x09112026) {
+				if(strcmp(buff,"EEEEEC01")==0) break ;
+			}
+		}
+
+		evt_done:;
+
+		fflush(f) ;
+			
+		LOG(NOTE,"Done evt %d, %d words after %d secs...",e,w_cou,time(0)-now) ;
+	}
+
+	
+	return 0 ;
+}
+
+
+
+int reg_cou ;
+struct reg_t regs[1034] ;
 
 int open_py(const char *fname)
 {
 	FILE *f = fopen(fname,"r") ;
 
+	reg_cou = 0 ;	// zap it first
+
 	if(f==0) {
-		LOG(ERR,"%s: %s",fname,strerror(errno)) ;
+		LOG(ERR,"open_py(%s): %s",fname,strerror(errno)) ;
 		return -1 ;
 	}
 
@@ -292,13 +348,13 @@ int open_py(const char *fname)
 }
 
 
-void exit_recover()
+static void exit_recover()
 {
 	fprintf(stderr,"%s\n",ANSI_RESET) ;
 	system("/bin/stty sane") ;
 }
 
-int kbhit()
+static int kbhit()
 {
 	static int first ;
 	u_char a ;
@@ -339,15 +395,17 @@ int main(int argc, char *argv[])
 	const char *reg_values = 0 ;
 	const char *c_asic  ;
 	char use_dout0 = 0 ;
+	int cmd_to_end_ack = 4 ;	// keep at 4 normally
 
-	time_t now ;
 
-	rtsLogLevel = 2 ;	// set to WARN and anove
 
-	while((c=getopt(argc,argv,"m:d:En:t:l:C:A:0D:")) != EOF) {
+	rtsLogLevel = 2 ;	// set to WARN and above
+
+	while((c=getopt(argc,argv,"m:d:En:t:l:C:A:0D:w:")) != EOF) {
 	switch(c) {
 	case 'm' :	// execute batch command with argument...
-		mode = atoi(optarg) ;
+		if(sscanf(optarg,"0x%X",&mode)==1) ;
+		else mode = atoi(optarg) ;
 		break ;
 	case 'E' :		// use legacy, non-FCMD, mode
 		sel_fcmd = 0 ;
@@ -378,6 +436,9 @@ int main(int argc, char *argv[])
 	case 'D' :
 		rtsLogLevel = atoi(optarg) ;
 		break ;
+	case 'w' :
+		cmd_to_end_ack = atoi(optarg) ;
+		break ;
 	}
 	}
 
@@ -393,18 +454,21 @@ int main(int argc, char *argv[])
 
 	if(mode==0 || (mode&1)) {	// SEND_CONFIG configuration phase; compatible with old style...
 		char buff[128] ;
-		int i2c_last ;
+		u_int i2c_last ;
+		u_int i2c_first = 0x4000 ;	// apart for EICROC0!
 
 		fw_flavor = rd(7) ;
 		LOG(INFO,"FW flavor: 0x%08X",fw_flavor) ;
 
 		switch(asic_type) {
 		case 10 :
-			c_asic = "EICROC" ;
+			c_asic = "EICROC0" ;
 			use_dout0 = 1 ;	// automatic override!
 			sel_fcmd = 0 ;	// automatic override
 			lane_mask = 1 ;	// automatic override
 
+			// THIS WILL CHANGE
+			i2c_first = 0x4000 ;
 			i2c_last = 0x4012 ;
 
 			if(reg_values==0) reg_values = "eicroc0_defaults.py" ;
@@ -431,8 +495,18 @@ int main(int argc, char *argv[])
 			}
 
 			break ;
-		case 2 :	// EICROC2 version 0... etc
-		case 9 :	// EICROC1 with metal fix
+		case 2 :	// EICROC2 version 0... etc TBD
+			c_asic = "EICROC2" ;
+			i2c_last = 0x401B ;
+
+			if(reg_values==0) reg_values = "yada" ;
+			break ;
+		case 9 :	// EICROC1 with metal fix. etc TBD
+			c_asic = "EICROC1_fixed" ;
+			i2c_last = 0x401AB ;
+			if(reg_values==0) reg_values = "orig_reg_values.py" ;								
+			break ;
+
 		case 1 :	// EICROC1
 		default :
 			c_asic = "EICROC1" ;
@@ -448,9 +522,8 @@ int main(int argc, char *argv[])
 		    sel_fcmd?'Y':'N',
 		    use_dout0?"DOUT0":"SDOUT") ;
 
-
-
 		LOG(INFO,"Using register values file \"%s\"",reg_values) ;
+
 		open_py(reg_values) ;
 
 
@@ -469,21 +542,26 @@ int main(int argc, char *argv[])
 
 		// reset
 		wr(2,0) ;	// reset last run, just in case
-
 		wr(0,0) ;	// reset the ASIC and keep in reset
 
 
 		// setup ZCU registers while the ASIC is in reset
 		{
-		int cmd_mode = 4 ;		// 4: DON'T issue CMDPULSE, 0: issue CMDPULSE
+		int cmd_mode ;		// 4: DON'T issue CMDPULSE, 0: issue CMDPULSE
 		int en_ack_to_cmd = 12 ;	// any length longer than at least 8
-		int cmd_to_end_ack = 4 ;	// keep at 4 normally
 
 
-		if(run_type==2) cmd_mode = 0 ;	// issue CMDPULSE
-		else cmd_mode = 4 ;		// no CMDPULSE
+		switch(run_type) {
+		case 2 :		
+		case 20 :
+			cmd_mode = 0 ;	// issue CMDPULSE
+			break ;
+		default :
+			cmd_mode = 4 ;		// no CMDPULSE
+			break ;
+		}
 
-		LOG(INFO,"Run_type %d, cmd_mode %s",run_type,cmd_mode==4?"PEDESTAL":"PULSER") ;
+		LOG(INFO,"Run_type %d, cmd_mode %s, cmd_to_end_ack %d",run_type,cmd_mode==4?"PEDESTAL":"PULSER",cmd_to_end_ack) ;
 
 		wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
 		wr(2,cmd_mode<<1) ;
@@ -495,7 +573,7 @@ int main(int argc, char *argv[])
 			u_int v ;
 			int clk40_delay = 0 ;
 
-			LOG(WARN,"New FW 0x%08X: EXPERIMENTAL",fw_flavor) ;
+			LOG(NOTE,"New FW 0x%08X",fw_flavor) ;
 
 			switch(asic_type) {
 			case 1 :
@@ -503,8 +581,8 @@ int main(int argc, char *argv[])
 				wr(4,6510) ;	// word count
 				clk40_delay = 2 ;
 				break ;
-			case 0 :
-			case 10 :
+			case 0 :	// EICROC0A
+			case 10 :	// EICROC0
 				wr(4,820) ;	// word count
 				clk40_delay = 0 ;
 				break ;
@@ -533,6 +611,13 @@ int main(int argc, char *argv[])
 			case 2 :
 				v |= (1<<8) ;		// CMDPULSE=1,
 				break ;
+			case 3 :			// physics, wait for TRIGOUT
+			case 20 :			// pulser, wait for TRIGOUT
+				v |= (3<<8) ;		// wait for TRIGOUT
+				break ;
+			case 4 :			// physics, wait for external pin
+				v |= (4<<8) ;
+				break ;
 			}
 
 
@@ -549,12 +634,20 @@ int main(int argc, char *argv[])
 		switch(asic_type) {
 
 		char buff[128] ;
+		u_short reg0;
 
-		case 0:	// EICROC0A
-		case 10 : // EICROC0
-			wr(0,(1<<4)|(1<<5)|(1<<6)) ;		// set appropriate bits; leave in reset
+		case 0:		// EICROC0A
+		case 10 :	// EICROC0
+			reg0 = 0 ;		//
+
+			reg0 |= (1<<4) ;	// tristate 320 MHz
+			reg0 |= (1<<5) ;	// swap dout_n and _p to fix the bug
+			reg0 |= (1<<6) ;	// use dout0
+			reg0 |= (1<<7) ;	// swap trgout_p and _n
+
+			wr(0,reg0) ;		// set appropriate bits; leave in reset
 			usleep(1000) ;
-			wr(0,(1<<4)|(1<<5)|(1<<6)|0x3) ;	// out of reset, keep bits
+			wr(0,reg0|0x3) ;	// out of reset, keep bits
 
 			ser_write("2d 0x08\n") ;	// new: I2C address is different than EICROC1's 0x40
 			ser_ln_read(buff) ;		// read but ignore the return string...
@@ -562,7 +655,7 @@ int main(int argc, char *argv[])
 			usleep(100000) ;		// wait a bit after reset
 
 			// dump global regs
-			for(int i=0x4000;i<=i2c_last;i++) {	// 4012
+			for(u_int i=i2c_first;i<=i2c_last;i++) {	// 4012
 				u_short v = i2c_rd(i) ;
 
 				LOG(DBG,"EICROC0%s defaults reg 0x%02X = 0x%02X",asic_type==0?"A":"",i,v) ;
@@ -572,7 +665,7 @@ int main(int argc, char *argv[])
 			for(int i=0;i<reg_cou;i++) {
 				u_int reg = regs[i].reg ;
 
-				//if(reg<0x4000) continue ;	// skip writes to single pixel!
+				if(reg<i2c_first) continue ;	// skip writes to single pixel!
 
 				ret = i2c_wr(reg,regs[i].val) ;
 
@@ -583,8 +676,8 @@ int main(int argc, char *argv[])
 
 			// per-pixel DEFAULTs, extracted from Alex' .py
 			i2c_wr(0x0001,0x80) ;
-			i2c_wr(0x0002,0x00) ;	// vref to 0x40 but I will make it 0x00
-			i2c_wr(0x0003,0x04) ;	// on_ctest?
+			i2c_wr(0x0002,0x70) ;	// vref to 0x40 but I will make it 0x00
+			i2c_wr(0x0003,0x94) ;	// on_ctest?
 			i2c_wr(0x0004,0x29) ;	// no idea... EICROC1 was 0x01
 			i2c_wr(0x0005,0x00) ;	// no idea... EICROC1 was 0x20
 
@@ -681,7 +774,7 @@ int main(int argc, char *argv[])
 			i2c_wr(0x0001,0x80|vth_corr) ;	// 0x80 | vth_corr
 			i2c_wr(0x0002,vref) ;		// vref
 
-			if(run_type==2) {	// pulser
+			if(run_type==2 || run_type==20) {	// pulser
 				i2c_wr(0x0003,0x04) ;	// on_ctest if 0x04 aka use pulser
 			}
 			else {
@@ -697,8 +790,8 @@ int main(int argc, char *argv[])
 
 
 		// common to all ASICs
-		// read those values back...
-		for(int i=0x4000;i<=i2c_last;i++) {
+		// read those values back and compare to expected ones
+		for(u_int i=i2c_first;i<=i2c_last;i++) {
 			u_char shd = i2c_glo_shadow[i-0x4000] ;
 
 			ret = i2c_rd(i) ;
@@ -759,43 +852,102 @@ int main(int argc, char *argv[])
 
 	}
 
-	// VERY LAST
-	if(mode & 2) {
-		// RUN_START
+	if(0x200==(mode & 0xF00)) {	// Alex calls
+		LOG(INFO,"Doing alex_run 0x%04X",mode) ;
 
-		fw_flavor = rd(7) ;
-
-		LOG(INFO,"Readout: %d events, FW flavor 0x%08X",num_events,fw_flavor) ;
-
-		for(int e=0;e<num_events;e++) {
-		
-		int w_cou = 0 ;
-		now = time(0) ;
-		ser_write("R 1\n") ;
-		for(int i=0;i<10000;i++) {
-			char buff[128] ;
-			ser_ln_read(buff) ;
-
-			if(strstr(buff,"End")) continue ;
-
-			w_cou++ ;
-			printf("Evt %d: %d = 0x%s\n",e,i,buff) ;
-
-			// look for end of trailer
-			if(fw_flavor==0xDEADC0DE) {	// old Jun 24, 2026 FW
-				if(strcmp(buff,"8FFFFFFF")==0) break ;
-			}
-			else {	// if(fw_flavor==0x09112026) {
-				if(strcmp(buff,"EEEEEC01")==0) break ;
-			}
-		}
-		fflush(stdout) ;
-
-		LOG(NOTE,"Done evt %d, %d words after %d secs...",e,w_cou,time(0)-now) ;
-		}
+		// if alex_run returns less than 0 i will terminate
+		// if not, I will continue with the state machine, e.g. take runs to stdout
+//		if(alex_run(mode,asic_type, run_type)<0) {
+//			LOG(INFO,"Mode 0x%04X requests termination.Bye.",mode) ;
+//			return 0 ;
+//		}
 	}
 
-	if(mode != -1) return 0 ;
+	if(0x100==(mode & 0xF00)) {	// Tonko's testing...
+		LOG(INFO,"Doing tonko_run 0x%04X",mode) ;
+
+		int i ;
+		int evt = 0 ;
+
+		u_int v = rd(1) ;
+
+//		printf("Start: reg1 0x%08X\n",v) ;
+
+		// reset FIFO and possible earlier wait state by pulsing corresponding bits
+		v |= (1<<12)|(1<<0) ;	
+		wr(1,v) ;
+		v &= ~((1<<12)|(1<<0)) ;
+		wr(1,v) ;
+
+		v = rd(1) ;
+//		printf("Before go: reg1 0x%08X\n",v) ;
+
+		// fire readout
+		v = rd(2) ;
+		wr(2,v|1) ;
+
+//		v = rd(1) ;
+//		printf("Reg 1: 0x%08X\n",v) ;
+
+//		u_int ro = v&0xFFFF0000 ;
+
+		// wait for data available
+		for(i=0;i<2000;i++) {
+			v = rd(1) ;
+
+			//if(ro!=(v&0xFFFF0000)) printf("0x%X\n",v) ;
+			if(v&(1<<16)) break ;	// data available
+		}
+
+		if(i>=2000) {	// timeout
+			LOG(ERR,"Timeout: no TRIGOUT. No data available for this event.") ;
+		}
+
+//		printf("i=%d, reg1 0x%08X\n",i,v) ;
+
+
+		int words = 0 ;
+		for(i=0;i<100000;i++) {
+			u_int v = rd(1) ;
+			u_int d = rd(6) ;
+
+			if(v&(1<<17)) break ;	// FIFO empty
+
+			printf("Evt %d: %d = 0x%08X\n",evt,words,d) ;
+			words++ ;
+
+		}
+		
+//		printf("i=%d\n",i) ;
+//		printf("Words %d\n",words) ;
+
+
+
+		// clear/reset wait state in case of TRIGOUT timeout
+		v = rd(1) ;
+		v |= (1<<12) ;
+		wr(1,v) ;	// pulse reset
+		v &= ~(1<<12) ;
+		wr(1,v) ;	// clear pulse
+
+		// reenable trgger
+		v = rd(2) ;
+		v &= ~1 ;	// clear bit 0
+		wr(2,v) ;
+
+
+	}
+
+	// VERY LAST
+	if(mode & 2) {
+		run_asic(stdout,num_events) ;
+	}
+
+
+	if(mode != -1) {
+		LOG(INFO,"Done.") ;
+		return 0 ;
+	}
 
 	do_interactive: ;
 
