@@ -20,8 +20,9 @@ static volatile u_int *const gpio_wr = (volatile u_int *) 0x40000008 ;
 static volatile u_int *const gpio_rd = (volatile u_int *) 0x40000000 ;
 
 
-static u_int dta[2048] ;
+//static u_int dta[2048] ;
 static u_int fw ;
+static int trigout_tmout = 10000 ;
 
 void wait(int loops)
 {
@@ -651,6 +652,7 @@ int main()
 		char *in ;
 		u_int ret ;
 		u_int val ;
+		u_int vv ;
 
 		in = get_cmd() ;
 
@@ -678,12 +680,14 @@ int main()
 			}
 			break ;
 		case 'T' :
+#if 0
 			for(int i=0;i<204;i++) {	// 204 shots of 32 ints
 				for(int j=0;j<32;j++) {
 					dta[j] = i*32+j ;
 				}
 				usb_write(dta,128) ;
 			}
+#endif
 			break ;
 		case 'w' :
 			if(in[1]=='s') {	// set bit
@@ -702,25 +706,48 @@ int main()
 			xil_printf("R %d = 0x%X\n",arg[0],cpu_read(arg[0])) ;
 				 
 			break ;
-		case 'R' :
-			val = cpu_read(2) & 0xFFFE ;	// remove bit 0
+		case 'R' :	// take data
+			val = cpu_read(2) & 0xFFFE ;	// cache event fire register
 			fw = cpu_read(7) ;
 
-			for(int i=0;i<arg[0];i++) {
-				u_int vv = cpu_read(1) ;
+			if(in[1]=='t') {	// just set timout
+				trigout_tmout = arg[0] ;
+				xil_printf("Rt = %d\n",trigout_tmout) ;
+				break ;
+			}
 
-				vv |= 1 ;
-				cpu_write(1,vv) ;	// reset FIFO
+			// reset FIFO and possible earlier wait state
+			vv = cpu_read(1) ;
+			vv |= (1<<12)|(1<<0) ;
+			cpu_write(1,vv) ;
+			vv &= ~( (1<<12) | (1<<0) ) ;
+			cpu_write(1,vv) ;
 
-				vv &= ~1 ;
-				cpu_write(1,vv) ;
 
+			cpu_write(2,val) ;	// reset fire here, just in case
+
+			for(int i=0;i<arg[0];i++) {	// loop over events
+				int w ;
 				cpu_write(2,val|1) ;	// fire
 				
 				// wait for FIFO not empty
-				for(;;) {
-					if((cpu_read(1)>>16)&2) continue ;	// FIFO empty...
-					break ;				// FIFO not-empty
+				for(w=0;w<trigout_tmout;w++) {
+					vv = cpu_read(1) ;
+					if(vv&(1<<16)) break ;		// data available
+				}
+
+				if(w>=trigout_tmout) {
+					xil_printf("ERR: TRG Timeout event %d\n",i) ;
+					// reset wait
+					vv = cpu_read(1) ;
+					vv |= (1<<12) ;
+					cpu_write(1,vv) ;
+					vv &= ~(1<<12) ;
+					cpu_write(1,vv) ;
+					
+					// reset go
+					cpu_write(2,val) ;
+					continue ;	// don't stop, keep going
 				}
 
 				int w_cou = 0 ;
@@ -730,11 +757,7 @@ int main()
 					
 					val = cpu_read(6) ;
 
-					//dta[w_cou] = val ;
-
-					//if(w_cou<10) {
-						xil_printf("%X\n",val) ;
-					//}
+					xil_printf("%X\n",val) ;
 
 					w_cou++ ;
 					if(fw==0xDEADC0DE && val==0x8FFFFFFF) {
@@ -742,21 +765,21 @@ int main()
 						break ;
 					}
 					else if(val==0xEEEEEC01) {
-
 						xil_printf("End event %d after %d\n",i,w_cou) ;
 						break ;
 					}
 					if(w_cou==10000) {	// I expect 6520 strobes...
-						xil_printf("Timeout event %d\n",i) ;
+						xil_printf("ERR: Readout Timeout event %d\n",i) ;
 						break ;
 					}
-
 				}
-				cpu_write(2,val) ;	// clear fire
 
+				cpu_write(2,val) ;	// clear fire
+				
 				//xil_printf("dta 0x%08X 0x%08X 0x%08X\n",dta[0],dta[1],dta[w_cou-1]) ;
 
 			}
+			cpu_write(2,val) ;	// clear FIRE, just in case
 			break ;
 		case 'E' :
 			if(in[1]=='w') {

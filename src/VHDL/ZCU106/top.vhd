@@ -114,6 +114,7 @@ signal sdout_in		: std_logic ;
 signal fcmd             : std_logic ;   -- out
 signal cmdpulse         : std_logic ;   -- out
 signal trigout          : std_logic ;   -- in
+signal trigout_tmp      : std_logic ;   -- in
 
 signal fcmd_d		: std_logic_vector(7 downto 0) := B"0000_0000" ;
 
@@ -161,7 +162,7 @@ START_READOUT <= start_rdout when(regs_rw(0)(3)='0') else 'Z' ;
 
 
 --============ ILA setup ======================================================
-ila0 <= B"00" & external_trigger & data_avail & enable_acq & start_rdout & cmdpulse & trig_external ;
+ila0 <= B"0" & PMOD_EXT & external_trigger & data_avail & enable_acq & start_rdout & cmdpulse & trig_external ;
 ila1 <= sdout & dout0 & B"00" & B"000" & fcmd ;
 ila2 <= sdout_8b ;
 ila3 <= dout_8b ;
@@ -184,10 +185,18 @@ dout0_in <= dout0_tmp when (regs_rw(0)(5)='0') else (not dout0_tmp) ;
 sdout_i : IBUFDS port map (i=>SDOUT_P, ib=>SDOUT_N, o=>sdout_tmp) ;
 sdout_in <= sdout_tmp when (regs_rw(0)(5)='0') else (not sdout_tmp) ;
 
-trigout_i : IBUFDS port map (i=>TRIGOUT_P, ib=>TRIGOUT_N, o=>trigout) ;
+trigout_i : IBUFDS port map (i=>TRIGOUT_P, ib=>TRIGOUT_N, o=>trigout_tmp) ;
+trigout <= trigout_tmp when (regs_rw(0)(7)='0') else (not trigout_tmp) ;
 
-RESETB <= regs_rw(0)(0) ;	-- 0:reset: DEFAULT IS KEEP IN RESET
-RST_I2C <= regs_rw(0)(1) ;	-- 0:reset: DEFAULT IS KEEP IN RESET
+-- align resets on the local 40 MHz clock
+process(clk_40)
+begin
+	if(rising_edge(clk_40)) then
+		RESETB <= regs_rw(0)(0) ;	-- 0:reset: DEFAULT IS KEEP IN RESET
+		RST_I2C <= regs_rw(0)(1) ;	-- 0:reset: DEFAULT IS KEEP IN RESET
+	end if ;
+end process ;
+
 SEL_FCMD <= regs_rw(0)(2) ;	-- 0:disable FCMD logic
 
 
@@ -207,9 +216,9 @@ process(clk_320, PMOD_EXT)
 begin
 	if(rising_edge(clk_320)) then
 		t_tmp <= PMOD_EXT ;
-		t_320 <= t1 ;
+		t_320 <= t_tmp ;
 	end if ;
-end if ;
+end process ;
 
 -- debounce on 40 MHz
 process(clk_40, t_320)
@@ -230,7 +239,7 @@ begin
 		if(t_320='0') then		-- debounce...
 			state <= S_IDLE ;
 		end if ;
-	end state ;
+	end case ;
 
 	end if ;
 end process ;
@@ -259,6 +268,7 @@ regs_ro(0)(9) <= SDA ;
 regs_ro(0)(0) <= dout0 ;
 regs_ro(0)(1) <= sdout ;
 regs_ro(0)(2) <= trigout ;
+regs_ro(0)(3) <= PMOD_EXT ;
 
 --=========== FIFO Status and Control
 
@@ -267,6 +277,7 @@ regs_ro(1)(1) <= fifo_empty ;
 regs_ro(1)(2) <= fifo_full ;
 regs_ro(1)(3) <= fifo_wr_rst_busy ;
 regs_ro(1)(4) <= fifo_rd_rst_busy ;
+--regs_ro(1)(5) taken
 
 fifo_srst <= regs_rw(1)(0) ;
 
@@ -510,6 +521,9 @@ port map (
 	sync40	=> sync40,
 	fcmd 	=> fcmd_d,
 	data_avail => data_avail,
+
+	wait_on => regs_ro(1)(5),
+	rst_state => regs_rw(1)(12),
 
 	rdout_type => regs_rw(1)(10 downto 8),
 

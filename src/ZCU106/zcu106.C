@@ -34,7 +34,7 @@ static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global regist
 static u_int fw_flavor ;
 static int asic_type = 1 ;			// EICROC0A, EICROC1...
 
-extern int alex_run(u_int mode, int asic_type, int asic_mode) ;
+extern int zcu106_alex(u_int mode, int asic_type, int asic_mode) ;
 
 
 static int ser_open()
@@ -790,7 +790,7 @@ int main(int argc, char *argv[])
 
 
 		// common to all ASICs
-		// read those values back and compare to expected ones
+		// read those values back and compare to expected ones. Just globals.
 		for(u_int i=i2c_first;i<=i2c_last;i++) {
 			u_char shd = i2c_glo_shadow[i-0x4000] ;
 
@@ -808,6 +808,7 @@ int main(int argc, char *argv[])
 	} // if(mode & 1)
 	
 
+#if 0
 	if(mode&4) {	// special post-configuration thing...
 		// generally do something on a per-pixel basis...
 		u_short addr ;
@@ -851,13 +852,14 @@ int main(int argc, char *argv[])
 
 
 	}
+#endif
 
 	if(0x200==(mode & 0xF00)) {	// Alex calls
-		LOG(INFO,"Doing alex_run 0x%04X",mode) ;
+		LOG(INFO,"Doing zcu106_alex, mode 0x%04X",mode) ;
 
 		// if alex_run returns less than 0 i will terminate
 		// if not, I will continue with the state machine, e.g. take runs to stdout
-//		if(alex_run(mode,asic_type, run_type)<0) {
+//		if(zcu106_alex(mode,asic_type, run_type)<0) {
 //			LOG(INFO,"Mode 0x%04X requests termination.Bye.",mode) ;
 //			return 0 ;
 //		}
@@ -940,9 +942,13 @@ int main(int argc, char *argv[])
 
 	// VERY LAST
 	if(mode & 2) {
-		run_asic(stdout,num_events) ;
+		run_asic(stdout,num_events) ;	// take events, dump to stdout
 	}
 
+
+	/****************************************
+	******** DON'T TOUCH BELOW **************
+	****************************************/
 
 	if(mode != -1) {
 		LOG(INFO,"Done.") ;

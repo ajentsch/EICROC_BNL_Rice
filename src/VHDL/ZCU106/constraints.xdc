@@ -120,7 +120,8 @@ set_property IOSTANDARD LVCMOS12 [get_ports GPIO_LED_2_LS]
 # for an external trigger
 set_property PACKAGE_PIN B23 [get_ports PMOD_EXT]
 set_property IOSTANDARD LVCMOS18 [get_ports PMOD_EXT]
-
+#the device on the far side has a pullup so not sure if PULLDOWN should be used...
+#set_property PULLDOWN TRUE [get_ports PMOD_EXT]
 
 set_property BITSTREAM.CONFIG.UNUSEDPIN PULLNONE [current_design]
 set_property BITSTREAM.CONFIG.USERID 32'hC106C106 [current_design]
