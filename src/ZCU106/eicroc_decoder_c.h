@@ -41,7 +41,7 @@ public:
 		u_short tdc[8] ;
 		u_char adc[8] ;	
 		u_char discr[8] ;
-		u_char hdr ;
+		u_char hdr ;	// should be 0xAC!
 	} pixel[32][32] ;	// 32 columns, 32 rows
 
 

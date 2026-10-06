@@ -4,13 +4,15 @@ include ../rtsmakefile.def
 #LDLIBS+= -lmosquitto
 
 
-BINS = zcu106 decoder
+BINS = zcu106 decoder ana_dta
 
 all: $(BINS)
 
-zcu106 : zcu106.o
+zcu106 : zcu106.o ../ALEX/alex_zcu.o
 
 decoder : eicroc_decoder_c.o decoder.o
+
+ana_dta : eicroc_decoder_c.o ana_dta.o 
 
 depend:
 	@$(MAKEDEPEND)
@@ -23,6 +25,8 @@ save:
 
 # DO NOT DELETE
 
+ana_dta.o: ../LOG/rtsLog.h
+ana_dta.o: eicroc_decoder_c.h
 decoder.o: ../LOG/rtsLog.h
 decoder.o: eicroc_decoder_c.h
 eicroc_decoder_c.o: ../LOG/rtsLog.h

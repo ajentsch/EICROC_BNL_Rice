@@ -30,7 +30,7 @@ extern int run_asic(FILE *f, int nevents) ;
 #define RUN_TYPE_PULSER		2	// CMDPULSE, no TRIGOUT wait
 #define RUN_TYPE_PHYS		3	// TRIGOUT wait
 #define RUN_TYPE_PHYS_B		4	// external trigger wait
-#degine RUN_TYPE_PULSER_B	20	// CMDPULSE, with TRIGOUT wait
+#define RUN_TYPE_PULSER_B	20	// CMDPULSE, with TRIGOUT wait
 
 #endif
 

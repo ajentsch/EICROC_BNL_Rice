@@ -321,7 +321,7 @@ int dam_c::lpgbt_init(int level)
 	u_int user_id ;
 	const char *cver ;
 
-	LOG(INFO,"lpGBT: init(%d)",level) ;
+	LOG(INFO,"lpGBT: entering init(%d)",level) ;
 
 	// first: make sure I can read the version
 	u_int ver  = lpgbt_read(0x1D7) ;
@@ -418,7 +418,7 @@ int dam_c::lpgbt_init(int level)
 		break ;
 	}
 
-	LOG(INFO,"lpGBT: setting downlink clock freq to %3d MHz; mask 0x%08X",real_freq,clock_mask) ;
+	LOG(INFO,"lpGBT: setting downlink clock freq to %3d MHz; enabled 0x%08X",real_freq,clock_mask) ;
 
 	for(int i=0;i<29;i++) {
 		u_int reg ;
@@ -441,7 +441,7 @@ int dam_c::lpgbt_init(int level)
 			lpgbt_write(reg,0) ;
 		}
 
-		LOG(DBG,"lpGBT: clock %d, enable %d, freq %3d MHz (@reg 0x%03X)",i,ena,real_freq,reg) ;
+		LOG(NOTE,"lpGBT: clock %d, enable %d, freq %3d MHz (@reg 0x%03X)",i,ena,real_freq,reg) ;
 
 		reg++ ;
 
@@ -518,13 +518,13 @@ int dam_c::lpgbt_init(int level)
 
 	int i = 0 ;
 	for(int reg=0x0AE;reg<=0x0BD;reg++) {
-//		int group = i/4 ;
-//		int ch = i%4 ;
+		int group = i/4 ;
+		int ch = i%4 ;
 
 		lpgbt_write(reg,(pre_strength<<5)|(mode<<3)|(drive<<0)) ;
 
-//		LOG(NOTE,"lpGBT: EDOUT drive: ch %d [%d%d]: enabled %d (@reg 0x%03X)",
-//		    i,group,ch,drive,reg) ;
+		LOG(NOTE,"lpGBT: EDOUT drive: ch %d [%d%d]: enabled %d (@reg 0x%03X)",
+		    i,group,ch,drive,reg) ;
 		i++ ;
 	}
 
@@ -533,7 +533,7 @@ int dam_c::lpgbt_init(int level)
 	for(int reg=0x0BE;reg<=0x0C5;reg++) {
 		lpgbt_write(reg,(pre_width<<4)|(pre_width<<0)) ;
 
-//		LOG(NOTE,"lpGBT: EDOUT pre_width: ch %d & %d (@reg 0x%03X)",i,i+1,reg) ;
+		LOG(NOTE,"lpGBT: EDOUT pre_width: ch %d & %d (@reg 0x%03X)",i,i+1,reg) ;
 		i += 2 ;
 	}
 
@@ -633,8 +633,9 @@ int dam_c::lpgbt_init(int level)
 	// 0,0 doesn;t work
 	// 0,1 doesn't work
 	// 1,0 works and shows 0x64
-	lpgbt_gpio(8,1) ;	// 
-	lpgbt_gpio(11,1) ;	// 
+
+//	lpgbt_gpio(8,1) ;	// 
+//	lpgbt_gpio(11,1) ;	// 
 
 
 
@@ -969,7 +970,8 @@ u_short dam_c::lpgbt_gpio_init()
 	case 1 :
 		output = (1<<15)|(1<<11)|(1<<8)|0x3F ;		// for RB3
 		break ;
-	case 2 :
+	case 2 :				// RBv1 and family
+	default :
 		output = 0xFFFF ;		// for RBv1
 		break ;
 	}
@@ -1023,7 +1025,7 @@ u_short dam_c::lpgbt_gpio(int pin, int on)
 
 	lpgbt.mon.gpio = hi ;
 
-//	LOG(INFO,"GPIO: pin %d:%d: 0x%04X",pin,on,hi) ;
+	LOG(DBG,"GPIO: pin %d:%d: 0x%04X",pin,on,hi) ;
 
 	return hi ;
 }
@@ -2002,6 +2004,20 @@ int dam_c::init()
 
 		c_board = "FTOF RBv1" ;
 		break ;
+	case 3:		// RBv1 with adapter and EICROC1
+		lpgbt_gpio_cached = (1<<15)|(0<<12)|(1<<11)|(1<<10)|(1<<8) ;
+
+		// 8: RESET1: RESETB on EICROC1; active lo
+		// 10: RESETVTRX, active low: MUST BE 1
+		// 11: RESET2: RST_I2C on EICROC1; active lo
+		// 12: DISVTRX, active high: MUST be 0!
+		// 15: GPIO15: SEL_FCMD in EICROC1; should be 1 ;
+
+
+
+		c_board = "RBv1+EICROC1" ;
+		break ;
+
 	default :
 		LOG(ERR,"Unspecified RDO on the other end %d",lpgbt_board_type) ;
 		break ;

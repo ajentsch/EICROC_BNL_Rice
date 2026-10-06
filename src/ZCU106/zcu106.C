@@ -26,6 +26,7 @@
 volatile int rtsLogLevel = 0 ;
 
 #include <ZCU106/zcu106.h>
+#include <ALEX/alex_zcu.h>
 
 static const char *usb_dev = "/dev/ttyUSB3" ;
 
@@ -34,7 +35,7 @@ static u_char i2c_glo_shadow[255] ;	// to shadow I2C writes to the global regist
 static u_int fw_flavor ;
 static int asic_type = 1 ;			// EICROC0A, EICROC1...
 
-extern int zcu106_alex(u_int mode, int asic_type, int asic_mode) ;
+
 
 
 static int ser_open()
@@ -162,7 +163,7 @@ u_int rd(u_int reg)
 		return val ;
 	}
 
-	LOG(ERR,"rd") ;
+	LOG(ERR,"rd %d",reg) ;
 	return 0 ;
 }
 
@@ -208,7 +209,7 @@ u_short i2c_wr(u_short reg, u_char val)
 		return err ;
 	}
 
-	LOG(ERR,"i2c_wr") ;
+	LOG(ERR,"i2c_wr 0x%04X 0x%02X",reg,val) ;
 	return 0xFFFF ;
 
 }
@@ -229,7 +230,7 @@ u_short i2c_rd(u_short reg)
 		return val ;
 	}
 
-	LOG(ERR,"i2c_rd") ;
+	LOG(ERR,"i2c_rd 0x%04X",reg) ;
 	return 0xFFFF ;
 	
 }
@@ -283,6 +284,12 @@ int run_asic(FILE *f, int nevents)
 		LOG(NOTE,"Done evt %d, %d words after %d secs...",e,w_cou,time(0)-now) ;
 	}
 
+	// flush
+	for(int i=0;i<10;i++) {
+		char buff[128] ;
+		ser_ln_read(buff) ;
+//		LOG(TERR,"%d = %s",i,buff) ;
+	}
 	
 	return 0 ;
 }
@@ -290,7 +297,7 @@ int run_asic(FILE *f, int nevents)
 
 
 int reg_cou ;
-struct reg_t regs[1034] ;
+struct reg_t regs[6000] ;
 
 int open_py(const char *fname)
 {
@@ -390,18 +397,18 @@ int main(int argc, char *argv[])
 	int mode = -1 ;
 	int sel_fcmd = 1 ;	// default is lpGBT mode
 	int num_events = 1 ;
-	int run_type = 1 ;	// default is pedestal
+	int run_type = 0 ;	// default is pedestal
 	u_char lane_mask = 1 ;
 	const char *reg_values = 0 ;
 	const char *c_asic  ;
 	char use_dout0 = 0 ;
 	int cmd_to_end_ack = 4 ;	// keep at 4 normally
-
+	int en_ack_to_cmd = 12 ;	// any length longer than at least 8
 
 
 	rtsLogLevel = 2 ;	// set to WARN and above
 
-	while((c=getopt(argc,argv,"m:d:En:t:l:C:A:0D:w:")) != EOF) {
+	while((c=getopt(argc,argv,"m:d:En:t:l:C:A:0D:w:W:")) != EOF) {
 	switch(c) {
 	case 'm' :	// execute batch command with argument...
 		if(sscanf(optarg,"0x%X",&mode)==1) ;
@@ -438,6 +445,9 @@ int main(int argc, char *argv[])
 		break ;
 	case 'w' :
 		cmd_to_end_ack = atoi(optarg) ;
+		break ;
+	case 'W' :
+		en_ack_to_cmd = atoi(optarg) ;
 		break ;
 	}
 	}
@@ -548,7 +558,7 @@ int main(int argc, char *argv[])
 		// setup ZCU registers while the ASIC is in reset
 		{
 		int cmd_mode ;		// 4: DON'T issue CMDPULSE, 0: issue CMDPULSE
-		int en_ack_to_cmd = 12 ;	// any length longer than at least 8
+
 
 
 		switch(run_type) {
@@ -605,7 +615,7 @@ int main(int argc, char *argv[])
 
 			switch(run_type) {
 			default :
-			case 1:
+			case 0:
 				v |= (0<<8) ;		// pedestal=0
 				break ;
 			case 2 :
@@ -675,9 +685,19 @@ int main(int argc, char *argv[])
 
 
 			// per-pixel DEFAULTs, extracted from Alex' .py
-			i2c_wr(0x0001,0x80) ;
-			i2c_wr(0x0002,0x70) ;	// vref to 0x40 but I will make it 0x00
-			i2c_wr(0x0003,0x94) ;	// on_ctest?
+			i2c_wr(0x0001,0x80) ;	// 7bits disc threshold
+			i2c_wr(0x0002,0x70) ;	// vref to 0x40 but I will make it 0x70
+
+			switch(run_type) {
+			case 0 :
+				i2c_wr(0x0003,0x90) ;	// on_ctest?
+				break ;
+			default :
+
+				i2c_wr(0x0003,0x94) ;	// on_ctest?
+				break ;
+			}
+
 			i2c_wr(0x0004,0x29) ;	// no idea... EICROC1 was 0x01
 			i2c_wr(0x0005,0x00) ;	// no idea... EICROC1 was 0x20
 
@@ -808,61 +828,16 @@ int main(int argc, char *argv[])
 	} // if(mode & 1)
 	
 
-#if 0
-	if(mode&4) {	// special post-configuration thing...
-		// generally do something on a per-pixel basis...
-		u_short addr ;
-		int column, row ;
-
-		// FIRST: values I want for a particular pixel
-		i2c_wr(0x0001,0x80) ;	// 0x80 | vth_corr
-		i2c_wr(0x0002,0x00) ;	// vref
-
-		if(run_type==2) {	// pulser
-			i2c_wr(0x0003,0x04) ;	// on_ctest if 0x04 aka use pulser
-		}
-		else {
-			i2c_wr(0x0003,0x00) ;	// on_ctest is off for other modes
-		}
-
-		i2c_wr(0x0004,0x01) ;
-		i2c_wr(0x0005,0x20) ;
-
-
-
-		column = 0 ;		// 0..31;5 bits; but only use 0..3 for my tests
-		row = 31 ;		// 0..31;5 bits; sometimes called "line"
-
-		// SECOND
-		// use the correct pixel but set the values for ALL, typically disable on_ctest
-		addr = 0x2000 | (column<<8) | (row<<3) ;	//had a bug: column was shifted 16
-
-		i2c_wr(addr|1,0x80) ;	// vth for discriminator
-		i2c_wr(addr|2,0x00) ;	// vref for ADC
-		if(run_type==2) {	// pulser
-			i2c_wr(addr|3,0x04) ;	// on_ctest if 0x04 aka use pulser
-		}
-		else {
-			i2c_wr(addr|3,0x00) ;	// on_ctest is off for other modes
-		}
-		
-		//i2c_wr(addr|3,0x00) ;	// on_ctest if 0x04
-		i2c_wr(addr|4,0x01) ;	// leave as-is at 0x01
-		i2c_wr(addr|5,0x20) ;	// leave as-is at 0x20
-
-
-	}
-#endif
 
 	if(0x200==(mode & 0xF00)) {	// Alex calls
-		LOG(INFO,"Doing zcu106_alex, mode 0x%04X",mode) ;
+		LOG(INFO,"Doing alex_zcu106, mode 0x%04X",mode) ;
 
 		// if alex_run returns less than 0 i will terminate
 		// if not, I will continue with the state machine, e.g. take runs to stdout
-//		if(zcu106_alex(mode,asic_type, run_type)<0) {
-//			LOG(INFO,"Mode 0x%04X requests termination.Bye.",mode) ;
-//			return 0 ;
-//		}
+		if(alex_zcu106(asic_type, run_type, num_events, mode)<0) {
+			LOG(INFO,"Mode 0x%04X requests termination.Bye.",mode) ;
+			return 0 ;
+		}
 	}
 
 	if(0x100==(mode & 0xF00)) {	// Tonko's testing...

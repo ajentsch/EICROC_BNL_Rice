@@ -31,6 +31,231 @@ void sighandler(int sig)
 static void adc_print() ;
 
 
+// this will get folded into dam_c.C later...
+static u_char i2c_glo_shadow[256] ;
+
+
+u_short eicr_wr(u_short reg, u_char value)
+{
+	u_short dev = 0x40 ;	// device
+	int devs ;
+
+	// lpGBT Bus #1 registers and constants
+	int data0 = 0x109 ;
+	int cmd = 0x10d ;
+	int addr = 0x108 ;
+	int status = 0x186 ;
+//	int read0 = 0x188 ;
+
+	dam->lpgbt_write(data0,(1<<2)|(1<<0)) ;
+	dam->lpgbt_write(cmd,0) ;	// write this in
+
+
+	dam->lpgbt_write(addr,dev) ;		// device
+	dam->lpgbt_write(data0,reg&0xFF) ;	// lower 8 bits of address
+	dam->lpgbt_write(cmd,0x2) ;		// 1-byte write
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C write 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+	dam->lpgbt_write(addr,dev+1) ;		// device+1
+	dam->lpgbt_write(data0,reg>>8) ;	// upper 8 bits of address ;
+	dam->lpgbt_write(cmd,0x2) ;		// 1-byte write
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C write 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+	dam->lpgbt_write(addr,dev+2) ;		// device+2
+	dam->lpgbt_write(data0, value) ;		// value
+	dam->lpgbt_write(cmd,0x2) ;		// 1-byte write
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C write 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+
+	if((reg&0xFF00)==0x0400) {
+		i2c_glo_shadow[reg&0xFF] = value ;
+	}
+
+	return 0 ;
+}
+
+u_short eicr_rd(u_short reg)
+{
+	u_short dev = 0x40 ;	// device
+	u_short val ;
+	int devs ;
+
+	// lpGBT Bus #1 registers and constants
+	int data0 = 0x109 ;
+	int cmd = 0x10d ;
+	int addr = 0x108 ;
+	int status = 0x186 ;
+	int read0 = 0x188 ;
+
+	dam->lpgbt_write(data0,(1<<2)|(1<<0)) ;
+	dam->lpgbt_write(cmd,0) ;	// write this in
+
+
+	dam->lpgbt_write(addr,dev) ;		// device
+	dam->lpgbt_write(data0,reg&0xFF) ;	// lower 8 bits of address
+	dam->lpgbt_write(cmd,0x2) ;		// 1-byte write
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C read 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+	dam->lpgbt_write(addr,dev+1) ;		// device+1
+	dam->lpgbt_write(data0,reg>>8) ;	// upper 8 bits of address ;
+	dam->lpgbt_write(cmd,0x2) ;		// 1-byte write
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C read 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+	dam->lpgbt_write(addr,dev+2) ;		// device+2
+	dam->lpgbt_write(cmd,0x3) ;		// 1-byte read
+
+
+	devs = 0 ;
+	for(int i=0;i<10;i++) {
+			
+		u_int val = dam->lpgbt_read(status) ;
+		if(val==0) continue ;
+
+		if(val != 0x40) {
+			if(val & 0x04) {
+				//LOG(INFO,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+				devs++ ;
+				break ;
+			}
+			else {
+				LOG(WARN,"lpGBT: I2C: dev 0x%02X: status 0x%02X",dev,val) ;
+			}
+		}
+	}
+
+
+	if(devs==0) {
+		LOG(ERR,"EICR: I2C read 0x%04X",reg) ;
+		return 0xFFFF ;
+	}
+
+
+	val = dam->lpgbt_read(read0) ;
+	LOG(DBG,"EICROC1: I2C R: reg 0x%04X = 0x%02X",reg,val) ;
+	return val ;
+}
+
+
 int main(int argc, char *argv[])
 {
 //	dam_c *dam ;
@@ -48,10 +273,13 @@ int main(int argc, char *argv[])
 	int etroc_mode = 0 ;
 	int run_mode = 0 ;
 	const char *usb_dev = 0 ;
+	int mode = 1 ;
+
+	rtsLogLevel = 2 ;	// default
 
 	signal(2,sighandler) ;
 
-	while((c=getopt(argc,argv,"rRl:2AGCE:s:D:d:")) != EOF) {
+	while((c=getopt(argc,argv,"rRl:2AGCE:s:D:d:m:")) != EOF) {
 	switch(c) {
 	case 'r' :
 		reg_dump = 1 ;
@@ -86,13 +314,16 @@ int main(int argc, char *argv[])
 	case 'd' :
 		usb_dev = optarg ;
 		break ;
+	case 'm' :
+		mode = atoi(optarg) ;
+		break ;
 	}
 	}
 	
 	dam = new dam_c(usb_dev) ;	// init PCIe version if NULL
 
 
-	dam->lpgbt_board_type = 2 ;	// 2: FTOF RBv1; must be set before init!
+	dam->lpgbt_board_type = 3 ;	// 3= RBv1 w EICROC1; must be set before init!
 	dam->init() ;
 
 	if(reg_dump==1) {
@@ -127,23 +358,24 @@ int main(int argc, char *argv[])
 	if(do_reset) {
 		LOG(WARN,"Issuing RESET") ;
 		if(dam->lpgbt_reset()==0) {
-			LOG(ERR,"Exiting!") ;
+			LOG(ERR,"RESET failed. Exiting!") ;
 			return -1 ;
 		}
 	}
 
-	LOG(INFO,"Running lpgbt_init") ;
+//	LOG(INFO,"Running lpgbt_init") ;
+
 	dam->lpgbt_init(0) ;
 
-	LOG(INFO,"After lpgbt_init") ;
+//	LOG(INFO,"After lpgbt_init") ;
 
 
 	// keep EICROC1 in reset wiggling GPIO
 	LOG(TERR,"Resetting EICROC1") ;
 	dam->lpgbt_gpio(8,0) ;	// RESETB=0
 	dam->lpgbt_gpio(11,0) ;	// RST_I2C=0
-	dam->lpgbt_gpio(15,1) ;	// SEL_FCMD=1 ;
-
+	u_short gpio = dam->lpgbt_gpio(15,1) ;	// SEL_FCMD=1 ;
+	LOG(NOTE,"GPIO is now 0x%04X",gpio) ;
 
 	// start IDLE FCMD
 	LOG(TERR,"Setting FCMD IDLE to 0x36") ;
@@ -152,7 +384,7 @@ int main(int argc, char *argv[])
 
 	// EDOUT00 is FCMD
 	// EDIN00 is SDOUT data
-	// EDIN02 is DOUT0
+	// EDIN02 is DOUT0 but not expected to use it
 	// ECLK0 is 320 MHz
 	// ECLK1 is 160 MHz but won't use it
 
@@ -160,10 +392,22 @@ int main(int argc, char *argv[])
 	LOG(TERR,"Un-resetting EICROC1") ;
 
 	dam->lpgbt_gpio(11,1) ;	// RST_I2C=1
-	u_short gpio = dam->lpgbt_gpio(8,1) ;	// RESETB=1
+	gpio = dam->lpgbt_gpio(8,1) ;	// RESETB=1
 	LOG(TERR,"GPIO is now 0x%04X",gpio) ;
 	
-	usleep(10000) ;		// give it time...
+	usleep(10000) ;		// give it time after reset
+
+	for(int r=0x4000;r<=0x401B;r++) {
+		u_int v = eicr_rd(r) ;
+		LOG(TERR,"I2C reg 0x%04X = 0x%02X",r,v) ;
+	}
+	eicr_wr(0x4000,0xE3);
+	for(int r=0x4000;r<=0x401B;r++) {
+		u_int v = eicr_rd(r) ;
+		LOG(TERR,"I2C reg 0x%04X = 0x%02X",r,v) ;
+	}
+
+#if 0 
 
 	// I2C scan
 //	dam->lpgbt_i2c_scan(0) ;	// nothing should be here; no point in trying
@@ -171,6 +415,7 @@ int main(int argc, char *argv[])
 
 	// bus #2 scan is not required but I leave it to make sure I2C works
 	dam->lpgbt_i2c_scan(2) ;	// 0x50 VTRX+, 0x70 2nd lpGBT
+#endif
 
 	LOG(WARN,"Stopping here for now.") ;
 	return 0 ;
