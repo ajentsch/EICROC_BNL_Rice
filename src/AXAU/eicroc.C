@@ -6,7 +6,7 @@
 #include <time.h>
 #include <signal.h>
 #include <string.h>
-
+#include <errno.h>
 
 #include <LOG/rtsLog.h>
 volatile int rtsLogLevel = 1 ;
@@ -15,6 +15,69 @@ volatile int rtsLogLevel = 1 ;
 
 static int sig_on ;
 static dam_c *dam ;
+
+
+int reg_cou ;
+struct reg_t {
+	u_short reg ;
+	u_char val ;
+} ;
+struct reg_t regs[6000] ;
+
+int open_py(const char *fname)
+{
+	FILE *f = fopen(fname,"r") ;
+
+	reg_cou = 0 ;	// zap it first
+
+	if(f==0) {
+		LOG(ERR,"open_py(%s): %s",fname,strerror(errno)) ;
+		return -1 ;
+	}
+
+	while(!feof(f)) {
+		char buff[256] ;
+		char b[256] ;
+		u_int reg ;
+
+		if(fgets(buff,sizeof(buff),f)==0) continue ;
+
+
+		int ret = sscanf(buff,"eic_clib.write_asic_indirect_reg(0x%X, %s",&reg,b) ;
+		if(ret!=2) continue ;
+
+		u_int val = 0 ;
+		int bit = 7 ;
+		if(b[0]=='0' && b[1]=='b') {
+			for(int j=2;j<20;j++) {
+				//printf(".... j=%d, bit=%d, bj=%c\n",j,bit,b[j]) ;
+
+				if(b[j]=='1') {
+					val |= 1<<bit ;
+					bit-- ;
+				}
+				else if(b[j]=='0') bit-- ;
+			}
+		}
+		else continue ;
+
+		//printf("Reg %d: 0x%04X = [%s] -- 0x%02X\n",reg_cou,reg,b,val) ;
+
+		regs[reg_cou].reg = reg ;
+		regs[reg_cou].val = val ;
+		reg_cou++ ;
+	}
+
+	fclose(f) ;
+
+//	printf("Read %d items\n",reg_cou) ;
+//	for(int i=0;i<reg_cou;i++) {
+//		printf("I2C %d: reg 0x%04X = 0x%02X\n",i,regs[i].reg,regs[i].val) ;
+//	}
+
+	return reg_cou ;
+
+}
 
 void sighandler(int sig)
 {
@@ -28,7 +91,7 @@ void sighandler(int sig)
 	sig_on = sig ;
 }
 
-static void adc_print() ;
+//static void adc_print() ;
 
 
 // this will get folded into dam_c.C later...
@@ -139,7 +202,7 @@ u_short eicr_wr(u_short reg, u_char value)
 	}
 
 
-	if((reg&0xFF00)==0x0400) {
+	if((reg&0xFF00)==0x4000) {
 		i2c_glo_shadow[reg&0xFF] = value ;
 	}
 
@@ -326,7 +389,7 @@ int main(int argc, char *argv[])
 	dam->lpgbt_board_type = 3 ;	// 3= RBv1 w EICROC1; must be set before init!
 	dam->init() ;
 
-	if(reg_dump==1) {
+	if(reg_dump==1) {	// keep this hack for convenience
 		u_short reg ;
 
 		for(int i=0;i<32;i++) {
@@ -337,10 +400,17 @@ int main(int argc, char *argv[])
 		}
 
 		for(int i=0;i<32;i++) {
+			const char *cc ;
+
 			reg = 0x400+i ;
 			u_int v = dam->reg_r(reg) ;
 
-			printf("slv160 %2d[0x%03X] = 0x%08X[%u]\n",i,reg,v,v) ;
+			if((i>=0)&&(i<=7)) cc = "RW" ;
+			else if((i>=8)&&(i<=15)) cc = "-" ;
+			else if((i>=16)&&(i<=23)) cc = "RO" ;
+			else cc = "xx" ;
+
+			printf("slv160 %2d[0x%03X] = 0x%08X[%u] %s\n",i,reg,v,v,cc) ;
 		}
 
 		for(int i=0;i<16;i++) {
@@ -356,30 +426,47 @@ int main(int argc, char *argv[])
 	dam->status() ;
 
 	if(do_reset) {
-		LOG(WARN,"Issuing RESET") ;
+		LOG(WARN,"Resetting lpGBT") ;
 		if(dam->lpgbt_reset()==0) {
-			LOG(ERR,"RESET failed. Exiting!") ;
+			LOG(ERR,"Reset lpGBT failed. Exiting!") ;
 			return -1 ;
 		}
 	}
 
-//	LOG(INFO,"Running lpgbt_init") ;
 
 	dam->lpgbt_init(0) ;
 
-//	LOG(INFO,"After lpgbt_init") ;
+
+	// EICROC specific stuff below
 
 
-	// keep EICROC1 in reset wiggling GPIO
-	LOG(TERR,"Resetting EICROC1") ;
-	dam->lpgbt_gpio(8,0) ;	// RESETB=0
-	dam->lpgbt_gpio(11,0) ;	// RST_I2C=0
-	u_short gpio = dam->lpgbt_gpio(15,1) ;	// SEL_FCMD=1 ;
-	LOG(NOTE,"GPIO is now 0x%04X",gpio) ;
+	
+	
+	dam->reg_w(1,0x3636) ;			// slv100_o(1): set FCMD: lower 8bits: IDLE, upper 8bit: BCR
+	dam->lpgbt_gpio(15,1) ;			// SEL_FCMD=1 ;
 
-	// start IDLE FCMD
-	LOG(TERR,"Setting FCMD IDLE to 0x36") ;
-	dam->reg_w(1,0x3636) ;	// lower 8bits: IDLE, upper 8bit: BCR
+	dam->reg_w(0x400+2, (12<<8)|(4<<0)) ;			// setup to slv160_i(2): mode32 register of eicroc_fcmd
+	dam->reg_w(2,40000000) ;				// set tick timer! actually 28 bits only
+
+
+	if(mode & 1) {
+		u_short gpio ;
+
+		// keep EICROC1 in reset wiggling GPIO
+		LOG(WARN,"Resetting EICROC1") ;
+
+		dam->lpgbt_gpio(8,0) ;	// RESETB=0
+		dam->lpgbt_gpio(11,0) ;	// RST_I2C=0
+
+
+		usleep(10000) ;
+
+		dam->lpgbt_gpio(11,1) ;	// RST_I2C=1
+		gpio = dam->lpgbt_gpio(8,1) ;	// RESETB=1
+		LOG(TERR,"GPIO is now 0x%04X",gpio) ;
+	
+		usleep(10000) ;		// give it time after reset
+	}
 
 
 	// EDOUT00 is FCMD
@@ -388,34 +475,209 @@ int main(int argc, char *argv[])
 	// ECLK0 is 320 MHz
 	// ECLK1 is 160 MHz but won't use it
 
-	// take it our of reset; wiggle FPIO
-	LOG(TERR,"Un-resetting EICROC1") ;
 
-	dam->lpgbt_gpio(11,1) ;	// RST_I2C=1
-	gpio = dam->lpgbt_gpio(8,1) ;	// RESETB=1
-	LOG(TERR,"GPIO is now 0x%04X",gpio) ;
-	
-	usleep(10000) ;		// give it time after reset
-
-	for(int r=0x4000;r<=0x401B;r++) {
-		u_int v = eicr_rd(r) ;
-		LOG(TERR,"I2C reg 0x%04X = 0x%02X",r,v) ;
-	}
-	eicr_wr(0x4000,0xE3);
-	for(int r=0x4000;r<=0x401B;r++) {
-		u_int v = eicr_rd(r) ;
-		LOG(TERR,"I2C reg 0x%04X = 0x%02X",r,v) ;
+	// set the EICROC up
+	if(usb_dev==0) {
+		for(int r=0x4000;r<=0x401B;r++) {
+			u_int v = eicr_rd(r) ;
+			LOG(NOTE,"EICROC default reg 0x%04X = 0x%02X",r,v) ;
+		}
 	}
 
-#if 0 
+	// global register sets
+	open_py("../ZCU106/orig_reg_values.py") ;
 
-	// I2C scan
-//	dam->lpgbt_i2c_scan(0) ;	// nothing should be here; no point in trying
-	dam->lpgbt_i2c_scan(1) ;	// ASICs
+	LOG(TERR,"Writing to EICROC via I2C") ;
+	for(int i=0;i<reg_cou;i++) {
+		u_int reg = regs[i].reg ;
 
-	// bus #2 scan is not required but I leave it to make sure I2C works
-	dam->lpgbt_i2c_scan(2) ;	// 0x50 VTRX+, 0x70 2nd lpGBT
+		if(reg<0x4000) continue ;
+
+		eicr_wr(reg,regs[i].val) ;
+	}
+
+	// local registers
+	eicr_wr(0x0001,0x80) ;
+	eicr_wr(0x0002,0x00) ;
+	eicr_wr(0x0003,0x00) ;
+	eicr_wr(0x0004,0x01) ;
+	eicr_wr(0x0005,0x20) ;
+
+	LOG(TERR,"I2C writes done.") ;
+
+	// I2C verification
+	for(int r=0x4000;r<=0x401B;r++) {
+		u_int v = eicr_rd(r) ;
+
+		if(v != i2c_glo_shadow[r&0xFF]) {
+			LOG(WARN,"EICROC reg 0x%04X: is 0x%02X, expect 0x%02X",r,v,i2c_glo_shadow[r&0xFF]) ;
+		}
+		else {
+			LOG(NOTE,"EICROC reg 0x%04X = 0x%02X",r,v) ;
+		}
+
+		if(usb_dev) break ;	// alow just 1 verification
+	}
+
+	// configure 
+
+	// take data...
+	if(run_mode) {
+		LOG(INFO,"Starting Run.") ;
+
+		// start a CPU run
+		dam->reg_w(0x00,0) ;	// slave 100 clear
+
+		dam->reg_w(0x400+1,0x06050401) ;		// GEO Id
+		//dam->reg_w(0x400+3,0xFFFFFFFF) ;		// ASIC mask
+
+		u_int v = dam->reg_r(0x400) ;
+		v &= 0xFFFFFFF0 ;	// first 4 bits to 0
+		dam->reg_w(0x400,v) ;
+
+		// cautiously reset: pci iface, pci_fifo_srst, asic_arbiter
+		// NOT gt_iface, NOT reg_iface
+		// 4: gt_iface_reset
+		// 5: ?
+		// 6: lpgbt_reset
+		// 7: reset_slave_160
+		// 8: pci_fifo_srst
+		// 9: asic_arbiter_reset
+		// 16,17 I2C
+
+		// rc_i is slv100_0(0)(7..0)) ;
+
+		dam->reg_w(0,(1<<5)|(1<<8)|(1<<9)) ;	// reset All
+		usleep(1000) ;						// keep in reset a bit
+		dam->reg_w(0,0) ;					// un-reset
+
+
+		// reset MEM_P
+		dam->reg_wp(0x800,1) ;	// reset MEM_P FIFO
+		dam->reg_w(0x801,0x80000000) ;	// MEM_P address
+		dam->reg_wp(0x800,0) ;	// pulse MEM_P WR_EN
+
+		// prepare for CPU read
+		// RC_I(5) is reset
+		// oreg(0)(1..0) bits 33,32
+		// oreg(0)(4)	-- FIFO empty
+		// oreg(0)(23..16) M2S STATUS
+		// oreg1 -- fifo_dout
+
+		// ireg(0)(16) -- PCIE fifo owner:1 is CPU
+		// ireg(0(17) -- fifo_rd_en
+		//
+		dam->reg_w(0x800,(1<<16)) ;	// CPU readout
+		LOG(TERR,"0x800 0x%08X 0x%08X 0x%08X",dam->reg_r(0x800),dam->reg_r(0x800+8),dam->reg_r(0x800+8+2)) ;
+
+		int cou = 0 ;
+		volatile u_int *store = dam->resmem_glo ;
+		int max_words = (128*1024*1024)/4 ;
+
+		// start run
+		dam->reg_w(0,(1<<0)) ;	// run_start...
+
+		// start GTU
+		dam->reg_w(0x400,(1<<20)) ;
+
+//		LOG(TERR,"0x800 0x%08X 0x%08X 0x%08X",dam->reg_r(0x800),dam->reg_r(0x800+8),dam->reg_r(0x800+8+2)) ;
+//		dam->fast_cmd(0x96) ;	// L1A
+
+
+		LOG(TERR,"ASIC status 0x%08X, ASIC err 0x%08X, ASIC locked 0x%08X",
+		    dam->reg_r(0x400+4+16),
+		    dam->reg_r(0x400+3+16),
+		    dam->reg_r(0x400+2+16)) ;
+
+		// set mode32 and fire
+		{
+			u_int mode = 0 ;	// pulse
+			u_int rdout_type = 0 ;	// no external trigger
+
+			
+			u_int v = dam->reg_r(0x400+2) & 0xFFFF ;	// keep delays intact
+			dam->reg_w(0x400+2, v | (mode<<16)|(rdout_type<<19)) ;
+			dam->reg_wp(0x400+2,31) ;	// GO!
+		}
+		
+		time_t now = time(0) ;
+
+		// fire EICROC1
+
+		for(int i=0;i<2000000000;i++) {
+			u_int dta ;
+
+
+#if 0
+			if(i%3==0) {
+				//dam->fast_cmd(0x66) ;	// Charge injection 0x69
+				//usleep(10) ;
+				dam->fast_cmd(0x96) ;	// L1A
+				//u_int val = dam->reg_r(0x400+16) & 0xFF ;
+				//LOG(TERR,"round trip to 0x96 = %d",val) ;
+			}
 #endif
+			if(((time(0)-now)>5) || (i==1)) {
+				//dam->fast_cmd(0x96) ;	// L1A
+
+				// slice counter
+				int tslice = dam->reg_r(0x400+16+1) ;
+
+
+				u_int r808 = dam->reg_r(0x800+8) ;
+				
+				u_int err = dam->reg_r(0x400+3+16) ;
+
+				dta = dam->reg_r(0x800+8+1) ;
+
+				LOG(TERR,"words read %d",cou) ;
+				LOG(TERR,"tslice %d, reg808 0x%08X: dta 0x%08X, ASIC err 0x%08X",tslice,r808,dta,err) ;
+				LOG(TERR,"ASIC status 0x%08X, ASIC locked 0x%08X",
+				    dam->reg_r(0x400+4+16),
+				    dam->reg_r(0x400+2+16)) ;
+			
+				now = time(0) ;
+
+				fflush(stdout) ;
+			}
+
+
+			if(cou>=max_words) {
+				LOG(WARN,"max_words exceeded -- breaking out") ;
+				break ;
+			}
+
+			// check FIFO
+			if(!(dam->reg_r(0x800+8)&(1<<4))) {	// FIFO not empty
+				u_int up = dam->reg_r(0x800+8)&0x3 ;	// read upper 2 bits
+				dta = dam->reg_r(0x800+8+1) ;		// read 32 bit data
+
+				dam->reg_wp(0x800,17) ;		// pulse rd_en
+
+
+				//store[cou] = dta ;
+
+				//if(cou<32) {
+					printf("Data %d =  %d %08X\n",cou,up,dta) ;
+				//}
+
+				cou++ ;
+			}
+
+			
+			if(sig_on) break ;
+		}
+
+		dam->reg_w(0,0) ;	// stop run
+		dam->reg_w(0x400,0) ;	// stop GTU
+
+		LOG(TERR,"Run ended after %d words",cou) ;
+
+		//for(int i=0;i<cou;i++) {
+		//	printf("%d = 0x%08X\n",i,store[i]) ;
+		//}
+	}
+
 
 	LOG(WARN,"Stopping here for now.") ;
 	return 0 ;
@@ -1029,7 +1291,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-
+#if 0
 static void adc_print()
 {
 	extern int lpgbt_adc_c(char *dest, int ch, int val) ;
@@ -1093,3 +1355,4 @@ static void adc_print()
 
 	return ;
 }
+#endif

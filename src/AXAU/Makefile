@@ -4,13 +4,15 @@ include ../rtsmakefile.def
 #LDLIBS+= -lmosquitto
 
 
-BINS = eicroc dam_test
+BINS = eicroc parser dam_test
 
 all: $(BINS)
 
 dam_test : dam_test.o dam_c.o rbv1.o
 
 eicroc : eicroc.o dam_c.o rbv1.o
+
+parser : parser.o
 
 depend:
 	@$(MAKEDEPEND)
@@ -30,3 +32,4 @@ dam_test.o: ../LOG/rtsLog.h
 dam_test.o: dam_c.h
 eicroc.o: ../LOG/rtsLog.h
 eicroc.o: dam_c.h
+parser.o: ../LOG/rtsLog.h

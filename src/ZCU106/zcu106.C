@@ -690,11 +690,14 @@ int main(int argc, char *argv[])
 
 			switch(run_type) {
 			case 0 :
-				i2c_wr(0x0003,0x90) ;	// on_ctest?
+				i2c_wr(0x0002,0x00) ;	// NO Vref
+				i2c_wr(0x0003,0x90) ;	// on_ctest -- no
+				break ;
+			case 1 :			// pedestal but with Vref
+				i2c_wr(0x0003,0x90) ;	// on_ctest -- no
 				break ;
 			default :
-
-				i2c_wr(0x0003,0x94) ;	// on_ctest?
+				i2c_wr(0x0003,0x94) ;	// on_ctest
 				break ;
 			}
 
