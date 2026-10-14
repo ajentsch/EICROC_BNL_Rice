@@ -59,13 +59,19 @@ int eicroc_decoder_c::decode(char *buff)
 
 				
 
-				if(asic_type==0) {	// EICROC0
+				if(asic_type==0) {	// EICROC0A
 					col_max = 1 ;
 					row_max = 16 ;
-					state = 11 ;	// for EICROC0
+					state = 11 ;	// for EICROC0A
 					is_fcmd = 0 ;	// override, if I can...
 				}
-				else {			// can only be EICROC1 so far
+                else if(asic_type==10) {  // EICROC0
+                    col_max = 1 ;
+                    row_max = 16 ;
+                    state = 11 ;    // for EICROC0 -- FIXME, is it true for EICROC0, or only 0A??
+                    is_fcmd = 0 ;   // override, if I can...
+                }
+                else {			// can only be EICROC1 so far
 						
 					col_max = 32 ;
 					row_max = 32 ;
@@ -268,7 +274,7 @@ int eicroc_decoder_c::decode(char *buff)
 		//LOG(TERR,"State 3") ;
 		//printf("+++ State 3\n") ;
 
-		if(asic_type==0) return 3 ;
+		if(asic_type==0 || asic_type==10) return 3 ; //added EICROC0 explicitly otherwise decoding will fail
 		
 		for(int lx=0;lx<8;lx++) {	// for each lane
 

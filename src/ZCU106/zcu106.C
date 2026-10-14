@@ -195,7 +195,7 @@ u_short i2c_wr(u_short reg, u_char val)
 	u_int err ;
 
 
-	if((reg&0xFF00)==0x4000) {	// global register
+	if( (reg&0xFF00)==0x4000 || (reg&0xF00)==0x200 ) {	// global register -- added || is for EICROC0 addresses
 		i2c_glo_shadow[reg&0xFF] = val ;
 	}
 
@@ -478,10 +478,10 @@ int main(int argc, char *argv[])
 			lane_mask = 1 ;	// automatic override
 
 			// THIS WILL CHANGE
-			i2c_first = 0x4000 ;
-			i2c_last = 0x4012 ;
+			i2c_first = 0x0200 ;
+			i2c_last = 0x0212 ;
 
-			if(reg_values==0) reg_values = "eicroc0_defaults.py" ;
+			if(reg_values==0) reg_values = "eicroc0_global_reg_defaults.py" ; //use Alex EICROC0 global defaults
 
 			if(fw_flavor==0xDEADC0DE) {
 				LOG(CRIT,"Old FW can't work with EICROC") ;
@@ -577,6 +577,7 @@ int main(int argc, char *argv[])
 		wr(2,cmd_mode<<1) ;
 		}
 
+		int local_reg;
 
 		// new FW features
 		if(fw_flavor != 0xDEADC0DE) {
@@ -646,8 +647,68 @@ int main(int argc, char *argv[])
 		char buff[128] ;
 		u_short reg0;
 
-		case 0:		// EICROC0A
-		case 10 :	// EICROC0
+		case 10:		// EICROC0
+		
+			reg0 = 0 ;		//
+
+			//reg0 |= (1<<3) ;	// Why doesn't bit3 need to be set to 1? When it is, it fails.
+			reg0 |= (1<<4) ;	// tristate 320 MHz
+			reg0 |= (1<<5) ;	// swap dout_n and _p to fix the bug
+			reg0 |= (0<<6) ;	// use dout0 --> WRONG use SDOUT because of how they defined the pins on the old boards
+			reg0 |= (1<<7) ;	// swap trgout_p and _n
+
+			wr(0,reg0) ;		// set appropriate bits; leave in reset
+			usleep(1000) ;
+			wr(0,reg0|0x3) ;	// out of reset, keep bits
+
+			ser_write("2d 0x0\n") ;	// new: I2C address is different than EICROC1's 0x40 -- set to 0x0 for EICROC0
+			ser_ln_read(buff) ;		// read but ignore the return string...
+
+			usleep(100000) ;		// wait a bit after reset
+
+			// dump global regs
+			for(u_int i=i2c_first;i<=i2c_last;i++) {	// 4012
+				u_short v = i2c_rd(i) ;
+
+				LOG(DBG,"EICROC0%s defaults reg 0x%02X = 0x%02X",asic_type==0?"A":"",i,v) ;
+
+			}
+
+			for(int i=0;i<reg_cou;i++) {
+				u_int reg = regs[i].reg ;
+
+				//if(reg<i2c_first) continue ;	// skip writes to single pixel! -- not needed for EICROC0
+
+				ret = i2c_wr(reg,regs[i].val) ;
+
+				LOG(NOTE,"I2C %d: write 0x%04X = 0x%02X",i,regs[i].reg,regs[i].val) ;
+			}
+
+            ////Now we handle writing to the local registers of EICROC0 -- this step is not even necessary since a user will set this themselves
+            //but I will conform to what Tonko is doing for now (Alex)
+
+            //10-bit address -- bit 9: global (1), local (0), bits [8:5] = selects column, 0001, 0010, 0100, 1000 -- [4:0], address of actual reg in block
+
+            for(u_int column = 0; column < 4; column++){
+                for(u_int row = 0; row < 4; row++){
+
+                    LOG(INFO, "local_reg = 0x%X", (1 << (5+column)));
+
+                    local_reg = (1 << (5+column)) + row*5; //starting local value for column
+                    LOG(INFO, "local_reg = 0x%X", (1 << (5+column)) + row*5);
+                    local_reg = 0x0FFF & local_reg;
+                    i2c_wr(local_reg,     0x80); //turns on discriminator, set Vth_corr to 0
+                    i2c_wr(local_reg + 1, 0x00); //turns on integrator, sets Vref_corr to 0
+                    i2c_wr(local_reg + 2, 0x84); //turns on debug outputs (PA, TRGOUT), turns on PA, turns on in_ctest
+                    i2c_wr(local_reg + 3, 0x01); //turns on TDC
+                    i2c_wr(local_reg + 4, 0x00); //doesn't mask any ADCs
+
+                }
+            }
+
+			break ;
+		
+		case 0 :	// EICROC0A
 			reg0 = 0 ;		//
 
 			reg0 |= (1<<4) ;	// tristate 320 MHz
@@ -815,7 +876,7 @@ int main(int argc, char *argv[])
 		// common to all ASICs
 		// read those values back and compare to expected ones. Just globals.
 		for(u_int i=i2c_first;i<=i2c_last;i++) {
-			u_char shd = i2c_glo_shadow[i-0x4000] ;
+			u_char shd = i2c_glo_shadow[i-i2c_first] ; //originally hard-coded to use 0x4000 for offset, doesn't work for EICROC0, changed to i2c_first
 
 			ret = i2c_rd(i) ;
 			if(ret != shd) {
