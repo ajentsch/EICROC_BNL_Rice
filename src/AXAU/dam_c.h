@@ -26,6 +26,9 @@ public:
 	static uint64_t resmem_bytes_glo ;
 	static uint64_t resmem_hwaddr_glo ;
 
+	u_int bitfile_version ;
+	u_int all_version ;
+
 	volatile u_int *slv100 ;
 	volatile u_int *slv160 ;
 	volatile u_int *slv250 ;

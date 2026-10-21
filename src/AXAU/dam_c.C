@@ -1291,8 +1291,8 @@ int dam_c::clock_check(int do_log)
 	LOG(INFO,"CLK_160 used %.3f",(float)c[0]/10000.0) ;
 	LOG(INFO,"CLK_250 used %.3f",(float)c[1]/10000.0) ;
 	LOG(INFO,"CLK_40 used %.3f",(float)c[2]/10000.0) ;
-	LOG(INFO,"CLK_160_gth %.3f",(float)c[3]/10000.0) ;
-	LOG(INFO,"CLK_160_gth_rx %.3f",(float)c[4]/10000.0) ;
+	LOG(INFO,"CLK_320_gth %.3f",(float)c[3]/10000.0) ;
+	LOG(INFO,"CLK_320_gth_rx %.3f",(float)c[4]/10000.0) ;
 	LOG(INFO,"CLK_250_pcie %.3f",(float)c[5]/10000.0) ;
 	LOG(INFO,"CLK_fmc_98 %.3f",(float)c[6]/10000.0) ;
 
@@ -1845,7 +1845,8 @@ u_int dam_c::reg_w(int reg, u_int val)
 
 	if(dam_mode==0) {
 		*(slv100+reg) = val ;
-		return *(slv100+reg) ;
+		return 0 ;
+//		return *(slv100+reg) ;
 	}
 
 	sprintf(cmd,"w %u,0x%X\n",reg,val) ;
@@ -1876,7 +1877,8 @@ u_int dam_c::reg_wp(int reg, int val)
 	if(dam_mode==0) {
 		*(slv100+reg) |= (1<<val) ;
 		*(slv100+reg) &= ~(1<<val) ;
-		return *(slv100+reg) ;
+		return 0 ;
+//		return *(slv100+reg) ;
 	}
 
 	sprintf(cmd,"wp %u,0x%X\n",reg,val) ;
@@ -2027,7 +2029,12 @@ int dam_c::init()
 	if(reg_r(15)==0xABCD1234) ;	// 
 	else {	// just after power-up: zap em all
 		LOG(WARN,"AXAU15 seems to have been powered up (0x%08X)",reg_r(15)) ;
-		for(int i=1;i<16;i++) reg_w(i,0) ;
+
+		bitfile_version = reg_r(14) ;
+		all_version = reg_r(15) ;
+
+//		for(int i=1;i<16;i++) reg_w(i,0) ;	// zap em all
+
 		reg_w(15,0xABCD1234) ;	// set marker
 	}
 
@@ -2103,21 +2110,21 @@ dam_c::dam_c(const char *usb_dev)
 		// do it here...
 		int fd = open("/dev/resmem",O_RDWR|O_SYNC) ;
 		if(fd < 0) {
-			LOG(CRIT,"resmem open [%s]",dam_ix,strerror(errno)) ;
+			LOG(WARN,"resmem open [%s]",dam_ix,strerror(errno)) ;
 			// don't return -- I might play with the PCIe slave only
 		}
 
 		if(ioctl(fd,RESMEM_IOC_HWADDR,&resmem_hwaddr_glo)<0) {
-			LOG(ERR,"resmem ioctl [%s]",strerror(errno)) ;
+			LOG(WARN,"resmem ioctl [%s]",strerror(errno)) ;
 		}
 		if(ioctl(fd,RESMEM_IOC_LENGTH,&resmem_bytes_glo)<0) {
-			LOG(ERR,"resmem ioctl [%s]",strerror(errno)) ;
+			LOG(WARN,"resmem ioctl [%s]",strerror(errno)) ;
 		}
 
 		vptr = mmap(0,resmem_bytes_glo,PROT_READ|PROT_WRITE,MAP_SHARED,fd,0) ;
 
 		if(vptr == MAP_FAILED) {
-			LOG(CRIT,"resmem mmap [%s]",strerror(errno)) ;
+			LOG(WARN,"resmem mmap [%s]",strerror(errno)) ;
 			close(fd) ;
 			// don't return -- perhaps I want to play with the PCIe slave
 		}
