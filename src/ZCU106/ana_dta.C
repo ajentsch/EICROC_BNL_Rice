@@ -6,7 +6,7 @@
 #include <math.h>
 
 #include <LOG/rtsLog.h>
-volatile int rtsLogLevel = 0 ;
+volatile int rtsLogLevel = 2 ;
 
 #include "eicroc_decoder_c.h"
 
@@ -28,18 +28,31 @@ static double tdc_sigma[32][32][8] ;
 
 static int d_mean[32][32][8] ;
 
+static u_short flags[32][32] ;
+
+static u_char lane_use[32] ;
+
 static int ped_add() 
 {
 	for(int c=0;c<decoder.col_max;c++) {
+
+	if(decoder.lane_had_bits[c/4]) {
+		lane_use[c] = 1 ;
+	}
+
 	for(int r=0;r<decoder.row_max;r++) {
 		u_int flag = 0 ;
 		int tdc_cou = 0 ;
 		int discr_cou = 0 ;
 
+		int any = 0 ;
+
 		for(int t=0;t<8;t++) {
 			u_int adc = decoder.pixel[c][r].adc[t] ;
 			u_int tdc = decoder.pixel[c][r].tdc[t] ;
 			int discr = decoder.pixel[c][r].discr[t] ;
+
+			if(adc || tdc || discr) any = 1 ;
 
 			switch(run_type) {
 			case 0 :	// pedestal
@@ -47,6 +60,8 @@ static int ped_add()
 				if(discr) flag |= 2 ;
 				if(adc<10) flag |= 4 ;
 				if(adc>250) flag |= 8 ;
+
+				if(discr) d_mean[c][r][t]++ ;
 
 				break ;
 			case 2 :
@@ -76,9 +91,11 @@ static int ped_add()
 			if(tdc_cou != 1 || discr_cou != 1) flag |= 0x10 ;
 		}
 
-		if(flag) {
+		if(flag && any) {
 			LOG(WARN,"Evt %d: pixel %d:%d flag 0x%X",evts,c,r,flag) ;
 		}
+
+		flags[c][r] |= flag ;
 	}}
 
 	evts++ ;
@@ -91,6 +108,9 @@ static int ped_calc()
 {
 	LOG(INFO,"Calculating with %d events",evts) ;
 	for(int c=0;c<decoder.col_max;c++) {
+
+	if(lane_use[c]==0) continue ;
+
 	for(int r=0;r<decoder.row_max;r++) {
 		double pp_mean ;
 		double pp_sigma ;
@@ -101,7 +121,7 @@ static int ped_calc()
 		pp_sigma = sqrt(p_sigma[c][r]/evts/8 - pp_mean*pp_mean) ;
 		
 
-		printf("C %2d, R %2d: mean %.3f, sigma %.3f\n",c,r,pp_mean,pp_sigma) ;
+		printf("C %2d, R %2d: mean %.3f, sigma %.3f, flag 0x%02X\n",c,r,pp_mean,pp_sigma,flags[c][r]) ;
 
 		for(int t=0;t<8;t++) {
 			int dd ;

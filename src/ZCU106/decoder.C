@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 #include <LOG/rtsLog.h>
-volatile int rtsLogLevel = 0 ;
+volatile int rtsLogLevel = 2 ;
 
 #include "eicroc_decoder_c.h"
 
@@ -20,13 +20,16 @@ int main(int argc, char *argv[])
 	// setup
 	decoder.is_fcmd = 1 ;	// default is from SDOUT
 
-	while((c=getopt(argc,argv,"Ef:")) != EOF) {
+	while((c=getopt(argc,argv,"Ef:D:")) != EOF) {
 	switch(c) {
 	case 'E' :
 		decoder.is_fcmd = 0 ;	// use legacy DOUT, not SDOUT
 		break ;
 	case 'f' :
 		out_format = atoi(optarg) ;
+		break ;
+	case 'D' :
+		rtsLogLevel = atoi(optarg) ;
 		break ;
 	}
 	}
@@ -47,15 +50,19 @@ int main(int argc, char *argv[])
 	int ret = decoder.decode(buff) ;
 
 
-	if(ret==3) {	// flafs end of event, let's print the data...
+	if(ret==3) {	// flags end of event, let's print the data...
+		LOG(DBG,"Using data") ;
 
 		switch(out_format) {
 		case 0 :
-			
+			int hc ;
 			printf("### Event %d: \n",decoder.evt) ;
 
 			// dump header
-			for(int i=0;i<8;i++) {
+			if(decoder.rbv1_fmt) hc = 16 ;
+			else hc = 8 ;
+
+			for(int i=0;i<hc;i++) {
 				printf("H 0x%08X, T 0x%08X\n",decoder.hdr[i],decoder.trl[i]) ;
 			}
 
@@ -104,6 +111,8 @@ int main(int argc, char *argv[])
 
 
 	}	// fgets...
+
+	LOG(INFO,"Done with %d events.",decoder.evt) ;
 
 	return 0 ;
 }

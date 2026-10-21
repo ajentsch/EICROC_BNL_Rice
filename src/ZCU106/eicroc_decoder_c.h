@@ -11,16 +11,21 @@ public:
 	int evt_start() ;
 	int decode(char *buff) ;
 	int decode(u_int datum) ;
+	int rbv1(u_int datum) ;
 
 	char is_fcmd ;
 
-	u_int hdr[8] ;
-	u_int trl[8] ;
+	u_int hdr1[32] ;
+	u_int hdr[32] ;
+	u_int trl[32] ;
+
 	int word_cou ;
 	int bit_cou ;
 	int fmt_type ;
 	int asic_type ;
 	int b_use ;
+	int hdr_len ;
+	int rbv1_fmt ;
 
 	int col_max ;
 	int row_max ;
@@ -28,7 +33,7 @@ public:
 	int evt ;
 
 	// 8 lanes, each with 4 columns or 128 pixels
-	u_char lane[8][128*203] ;	// linarized bit-array
+	u_char lane[8][128*203*10] ;	// linarized bit-array
 	int lane_bits[8] ;
 	u_char lane_had_bits[8] ;
 
