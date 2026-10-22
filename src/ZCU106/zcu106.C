@@ -398,7 +398,7 @@ int main(int argc, char *argv[])
 	int sel_fcmd = 1 ;	// default is lpGBT mode
 	int num_events = 1 ;
 	int run_type = 0 ;	// default is pedestal
-	u_char lane_mask = 1 ;
+	u_int lane_mask = 1 ;
 	const char *reg_values = 0 ;
 	const char *c_asic  ;
 	char use_dout0 = 0 ;
@@ -458,6 +458,8 @@ int main(int argc, char *argv[])
 
 	if(ser_open()<0) exit(-1) ;
 
+
+	LOG(NOTE,"mode is 0x%X",mode) ;
 
 	if(mode==-1) goto do_interactive ;
 
@@ -571,7 +573,9 @@ int main(int argc, char *argv[])
 			break ;
 		}
 
-		LOG(INFO,"Run_type %d, cmd_mode %s, cmd_to_end_ack %d",run_type,cmd_mode==4?"PEDESTAL":"PULSER",cmd_to_end_ack) ;
+		LOG(INFO,"Run_type %d, cmd_mode %s: en_acq_to_cmd %d, cmd_to_end_ack %d",run_type,cmd_mode==4?"PEDESTAL":"PULSER",
+		    en_ack_to_cmd,
+		    cmd_to_end_ack) ;
 
 		wr(3,(en_ack_to_cmd<<8) | (cmd_to_end_ack)) ;
 		wr(2,cmd_mode<<1) ;
@@ -590,7 +594,7 @@ int main(int argc, char *argv[])
 			case 1 :
 			default :
 				wr(4,6510) ;	// word count
-				clk40_delay = 2 ;
+				clk40_delay = 0 ;	// was 2
 				break ;
 			case 0 :	// EICROC0A
 			case 10 :	// EICROC0

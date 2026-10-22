@@ -20,8 +20,9 @@ depend:
 clean:
 	@$(CLEAN) $(BINS)
 
+
 save:
-#	cp -a zcu106.C /home/epic/tonko
+	scp -p zcu106 ana_dta decoder Ljubicic@bonner-muon.rice.edu:code
 
 # DO NOT DELETE
 

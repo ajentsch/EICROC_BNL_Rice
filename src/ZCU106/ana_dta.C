@@ -36,6 +36,8 @@ static int ped_add()
 {
 	for(int c=0;c<decoder.col_max;c++) {
 
+//	printf("%d %d\n",c,decoder.lane_had_bits[c/4]) ;
+
 	if(decoder.lane_had_bits[c/4]) {
 		lane_use[c] = 1 ;
 	}
@@ -154,6 +156,7 @@ int main(int argc, char *argv[])
 	int first = 1 ;
 
 	// setup
+	decoder.is_fcmd = 1 ;
 
 	while((c=getopt(argc,argv,"Et:")) != EOF) {
 	switch(c) {
