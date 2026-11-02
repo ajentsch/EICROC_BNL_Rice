@@ -4,7 +4,7 @@ include ../rtsmakefile.def
 #LDLIBS+= -lmosquitto
 
 
-BINS = eicroc parser dam_test
+BINS = eicroc machine parser dam_test
 
 all: $(BINS)
 

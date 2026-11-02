@@ -411,7 +411,7 @@ int dam_c::lpgbt_init(int level)
 		real_freq = 40 ;
 		break ;
 	case 4 :
-		real_freq = 320 ;
+		real_freq = 320 ;	// this one!
 		break ;
 	default :
 		real_freq = 0 ;
@@ -432,10 +432,17 @@ int dam_c::lpgbt_init(int level)
 
 		reg = 0x06E + i*2 ;
 
-		int strength = 4 ;	// drive strength: 2=1.5 mA
+//		Used until Oct 2026
+//		int low_res = 0 ;
+//		int strength = 4 ;	// drive strength: 2=1.5 mA
+//		int invert = 0 ;
+
+		int low_res = 0 ;
+		int strength = 7 ;	// drive strength: 2=1.5 mA, 4=2.5mA
 		int invert = 0 ;
+
 		if(ena) {
-			lpgbt_write(reg,(invert<<6)|(strength<<3)|(clock_freq<<0)) ;
+			lpgbt_write(reg,(low_res<<7)|(invert<<6)|(strength<<3)|(clock_freq<<0)) ;
 		}
 		else {
 			lpgbt_write(reg,0) ;
@@ -446,6 +453,11 @@ int dam_c::lpgbt_init(int level)
 		reg++ ;
 
 		// preemphasis
+//		Used until Oct 2026
+//		strength = 1 ;	// pre_emphasis strength 2=1.5 mA
+//		int mode = 0 ;	// pre_emphasis mode: 0=disabled
+//		int width = 0 ;	// pre_emphasis width: 0=120 ps
+
 		strength = 1 ;	// pre_emphasis strength 2=1.5 mA
 		int mode = 0 ;	// pre_emphasis mode: 0=disabled
 		int width = 0 ;	// pre_emphasis width: 0=120 ps
@@ -1400,11 +1412,13 @@ int dam_c::status()
 		reg_wp(0x400+4,5) ;
 	}
 
+#if 0
 	u_int asic_err = reg_r(0x400+16+3) ;
 
 	if(asic_err) {
 		LOG(ERR,"ASIC error 0x%08X",asic_err) ;
 	}
+#endif
 
 	return 0 ;
 }
@@ -1970,7 +1984,7 @@ unsigned long dam_c::resmem_hwaddr_glo ;
 
 dam_c::~dam_c()
 {
-	LOG(INFO,"DAM %d: destructor",dam_ix) ;
+	LOG(NOTE,"DAM %d: destructor",dam_ix) ;
 
 	if(usb_desc>=0) {
 		close(usb_desc) ;
@@ -2025,24 +2039,33 @@ int dam_c::init()
 		break ;
 	}
 
+
+	LOG(TERR,"Versions? 0x%08X 0x%08X",reg_r(14),reg_r(15)) ;
+
 	// check for power-up of AXAU15
 	if(reg_r(15)==0xABCD1234) ;	// 
 	else {	// just after power-up: zap em all
-		LOG(WARN,"AXAU15 seems to have been powered up (0x%08X)",reg_r(15)) ;
+
 
 		bitfile_version = reg_r(14) ;
 		all_version = reg_r(15) ;
 
+		LOG(WARN,"AXAU15 seems to have been powered up (0x%08X, 0x%08X)",bitfile_version, all_version) ;
+
 //		for(int i=1;i<16;i++) reg_w(i,0) ;	// zap em all
 
-		reg_w(15,0xABCD1234) ;	// set marker
+//		reg_w(15,0xABCD1234) ;	// set marker
 	}
+
+
+
+	clock_check(1) ;
 
 	LOG(INFO,"DAM %d:init: board type %s(%d), lpgbt id 0x%02X, default GPIO 0x%04X",
 	    dam_ix, c_board, lpgbt_board_type,lpgbt_dev_id,lpgbt_gpio_cached) ;
 
 
-	if(usb_desc>=0) LOG(WARN,"Using USB as the interface") ;
+	if(usb_desc>=0) LOG(WARN,"Using USB as the interface. It will be slow.") ;
 
 	return 0 ;
 
@@ -2052,7 +2075,7 @@ dam_c::dam_c(const char *usb_dev)
 {
 	int cfd = -1 ;
 	void *vptr = 0 ;
-	u_int v ;
+
 
 
 	if(usb_dev) dam_mode = 1 ;
@@ -2085,7 +2108,7 @@ dam_c::dam_c(const char *usb_dev)
 
 
 	LOG(INFO,"DAM %d: constructor: mode %s",
-	    dam_ix,dam_mode==1?"USB":"PCIe") ;
+	    dam_ix,usb_dev?usb_dev:"PCIe") ;
 
 
 	if(dam_mode) {
@@ -2164,6 +2187,8 @@ dam_c::dam_c(const char *usb_dev)
 	
 	dam_count++ ;
 
+#if 0
+	u_int v ;
 	v = reg_r(14) ;
 	LOG(INFO,"FW: V-bit version 0x%08X [%s]",v,hwicap_version(v)) ;
 	v = reg_r(15) ;
@@ -2172,7 +2197,7 @@ dam_c::dam_c(const char *usb_dev)
 
 	LOG(INFO,"clock_check") ;
 	clock_check(1) ;
-	
+#endif	
 
 	return ;	// sucessful return
 

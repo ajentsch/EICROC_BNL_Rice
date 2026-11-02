@@ -264,7 +264,7 @@ u_short eicr_rd(u_short reg)
 
 
 	val = dam->lpgbt_read(read0) ;
-	LOG(DBG,"EICROC1: I2C R: reg 0x%04X = 0x%02X",reg,val) ;
+//	LOG(DBG,"EICROC1: I2C R: reg 0x%04X = 0x%02X",reg,val) ;
 	return val ;
 }
 
@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
 
 	int num_events = 1 ;
 
-	int en_acq_to_cmd = 12 ;
+	int en_acq_to_cmd = 150 ;
 	int cmd_to_end_acq = 4 ;
 
 	const char *eicroc_cfg_c = "../CONF/e1_orig_reg_values.py" ;
@@ -294,12 +294,14 @@ int main(int argc, char *argv[])
 
 	int board_type = 3 ;	//3=RBv1 with bad EICROC1
 
-	u_int glo_threshold = 0x300 ;
+	u_int glo_threshold = 1023 ;
+	u_int pulser_0 = 10 ;
 
 	signal(2,sighandler) ;
 	
+	int vref_use = 0 ;
 
-	while((c=getopt(argc,argv,"D:d:m:n:W:w:M:C:A:t:l:G:")) != EOF) {
+	while((c=getopt(argc,argv,"D:d:m:n:W:w:M:C:A:t:l:G:v:p:")) != EOF) {
 	switch(c) {
 	case 'D' :
 		rtsLogLevel = atoi(optarg) ;
@@ -342,6 +344,12 @@ int main(int argc, char *argv[])
 		break ;
 	case 'G' :
 		glo_threshold = atoi(optarg) ;
+		break ;
+	case 'v' :
+		vref_use = atoi(optarg) ;
+		break ;
+	case 'p' :
+		pulser_0 = atoi(optarg) ;
 		break ;
 
 	}
@@ -474,20 +482,21 @@ int main(int argc, char *argv[])
 			eicr_wr(reg,regs[i].val) ;
 		}
 
-		
+#if 1
 		// defaults for A=0xFF, B=0x63, C=0xC0 ;
 		//A 10bitDAC[7..0]	lower 8 bits of common discriminator threshold
 		//B bbbb_bbdd            bb is dac_biaspa, dd is uppermost 2 bits of the discriminator
 		//C 0b11pp_pppp		pp_pppp is pulser height but reverse: 0 is the largest
 
 		//u_int glo_threshold = 0xF0F ;	// 0xF
-		u_int pulser = 0x3F ;		
+		//u_int pulser = 0x3F ;		
 
 		glo_threshold &= 0x3FF ;	// 10 bits
 	
-		LOG(INFO,"Pulser 0x%02X, global threshold %d",pulser, glo_threshold) ;
+		int reg_pulser = (0x3F - pulser_0)&0x3F ;	// 6 bits, reversed
 
-		pulser = (0x3F - pulser)&0x3F ;	// 6 bits, reversed
+		LOG(INFO,"Pulser 0x%02X (in reg 0x%02X), global threshold %d",pulser_0, reg_pulser, glo_threshold) ;
+
 
 //		u_int aa = glo_threshold&0xFF ;
 //		u_int bb = 0x60|((glo_threshold>>8)&3) ;
@@ -496,13 +505,13 @@ int main(int argc, char *argv[])
 
 		eicr_wr(0x400A,glo_threshold&0xFF) ;	// 0xFF
 		eicr_wr(0x400B,0x60|((glo_threshold>>8)&3)) ;	// 0x63
-		eicr_wr(0x400C,0xC0|pulser) ;	// 0xC0
+		eicr_wr(0x400C,0xC0|reg_pulser) ;	// 0xC0
 
 
 //		eicr_wr(0x400A,0xFF) ;	// 0xFF
 //		eicr_wr(0x400B,0x63) ;	// 0x63
 //		eicr_wr(0x400C,0xC0) ;	// 0xC0
-
+#endif
 
 		// lane clock enable machinations
 		// setup EICROC1 lanes
@@ -559,7 +568,7 @@ int main(int argc, char *argv[])
 
 		// local registers MUST come last!
 
-		const u_int vref_use = 80 ;
+
 		const u_int vth_use = 0 ;	// some reasonable default
 
 		int vref = vref_use & 0x7F ;	// only 7 bits
@@ -583,11 +592,11 @@ int main(int argc, char *argv[])
 		eicr_wr(0x0001,0x80|vth) ;	// discriminator threshold
 		eicr_wr(0x0002,vref) ;
 		eicr_wr(0x0003,on_ctest) ;
-		eicr_wr(0x0004,0x01) ;	// EICROC0A was 0x29 (EN_TDC)
-		eicr_wr(0x0005,0x20) ;	// EICROC0A was 0x00 (EN_TUNE_GAIN_ADC)
+//		eicr_wr(0x0004,0x01) ;	// EICROC0A was 0x29 (EN_TDC)
+//		eicr_wr(0x0005,0x20) ;	// EICROC0A was 0x00 (EN_TUNE_GAIN_ADC)
 
-//		eicr_wr(0x0004,0x29) ;	// EICROC0A was 0x29 (EN_TDC)
-//		eicr_wr(0x0005,0x00) ;	// EICROC0A was 0x00 (EN_TUNE_GAIN_ADC)
+		eicr_wr(0x0004,0x29) ;	// EICROC0A was 0x29 (EN_TDC)
+		eicr_wr(0x0005,0x00) ;	// EICROC0A was 0x00 (no EN_TUNE_GAIN_ADC)
 
 
 		LOG(INFO,"Vref %d, Vth %d, on-ctest %c",vref,vth,on_ctest?'Y':'N') ;
