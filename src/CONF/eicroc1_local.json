@@ -1,0 +1,155 @@
+{
+    "localRegister_0": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "enable_discriminator",
+                "label": "discriminator",
+                "tag": "enable_discriminator",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Enable discriminator"
+            },
+            {
+                "name": "vth_cor[6:0]",
+                "label": "discriminator",
+                "tag": "discri_threshold_correction",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 0,
+                "defaultValue": "1000000",
+                "description": "Local discriminator threshold correction"
+            }
+        ]
+    },
+    "localRegister_1": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "disable_integ",
+                "label": "integrator",
+                "tag": "disable_integ",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Disable integrator"
+            },
+            {
+                "name": "vref_cor[6:0]",
+                "label": "rtr",
+                "tag": "adc_correction",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 0,
+                "defaultValue": "1000000",
+                "description": "Local ADC reference correction"
+            }
+        ]
+    },
+    "localRegister_2": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "EN_digprobe",
+                "label": "probe",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Enable digital probe"
+            },
+            {
+                "name": "probe[2:0]",
+                "label": "probe",
+                "tag": "local_probe",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 4,
+                "defaultValue": "000",
+                "description": "Probe selection"
+            },
+            {
+                "name": "disable_pa",
+                "label": "preamplifier",
+                "tag": "disable_preamp",
+                "bitPosition": 3,
+                "defaultValue": "0",
+                "description": "Disable pre-amplifier"
+            },
+            {
+                "name": "ON_ctest",
+                "label": "injection",
+                "tag": "internal_injection",
+                "bitPosition": 2,
+                "defaultValue": "0",
+                "description": "Enable Ctest"
+            },
+            {
+                "name": "cd[1:0]",
+                "label": "preamplifier",
+                "tag": "preamp_input_capacitance",
+                "bitPosition_MSB": 1,
+                "bitPosition_LSB": 0,
+                "defaultValue": "11",
+                "description": "PA Input capacitance selection"
+            }
+        ]
+    },
+    "localRegister_3": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "INIT_DAC_B_TDC",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Initialize DAC B TDC"
+            },
+            {
+                "name": "DAC_CAL_CTDC[5:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 1,
+                "defaultValue": "000000",
+                "description": "DAC calibration CTDC"
+            },
+            {
+                "name": "enable_tdc",
+                "label": "tdc",
+                "tag": "enable_tdc",
+                "bitPosition": 0,
+                "defaultValue": "1",
+                "description": "Enable TDC"
+            }
+        ]
+    },
+    "localRegister_4": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "bypass_pixel",
+                "label": "control",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Bypass pixel"
+            },
+            {
+                "name": "disable_adc",
+                "label": "adc",
+                "tag": "disable_adc",
+                "bitPosition": 6,
+                "defaultValue": "0",
+                "description": "Disable ADC"
+            },
+            {
+                "name": "EN_TUNE_GAIN_DAC",
+                "label": "tdc",
+                "bitPosition": 5,
+                "defaultValue": "0",
+                "description": "Enable tune gain DAC"
+            },
+            {
+                "name": "DAC_CAL_FTDC[5:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 4,
+                "bitPosition_LSB": 0,
+                "defaultValue": "00000",
+                "description": "DAC calibration FTDC"
+            }
+        ]
+    }
+}

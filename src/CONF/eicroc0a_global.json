@@ -1,0 +1,685 @@
+{
+    "globalRegister_0": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "choice_dig_probe",
+                "label": "probe",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Digital (hit) probe choice"
+            },
+            {
+                "name": "EN_Dout",
+                "label": "control",
+                "bitPosition": 6,
+                "defaultValue": "1",
+                "description": "Enable Dout"
+            },
+            {
+                "name": "EN_Trigout",
+                "label": "control",
+                "bitPosition": 5,
+                "defaultValue": "1",
+                "description": "Enable Trigout"
+            },
+            {
+                "name": "FIFO_DELL_40MHz",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "0",
+                "description": "Add a delay in the 40 MHz for FIFO block synchronization and the gray counter"
+            },
+            {
+                "name": "DISABLE_AUTO_REFRESH_COUNTER",
+                "label": "tdc",
+                "bitPosition": 3,
+                "defaultValue": "0",
+                "description": "Disable the auto refresh mode of the global gray counter for the TDC channel (start at the rising edge for the 40 MHz 160 MHz synchronization)"
+            },
+            {
+                "name": "VD_CTDC_P_DAC_EN",
+                "label": "tdc",
+                "bitPosition": 2,
+                "defaultValue": "0",
+                "description": "Activate the DAC for the VD_FTDC_P voltage"
+            },
+            {
+                "name": "CTRL_IN_CTDC_P_EN",
+                "label": "tdc",
+                "bitPosition": 1,
+                "defaultValue": "0",
+                "description": "Activate the DAC for CTRL_CTDC calibration voltage"
+            },
+            {
+                "name": "CTRL_IN_CTDC_P_SIG",
+                "label": "tdc",
+                "bitPosition": 0,
+                "defaultValue": "0",
+                "description": "Activate the sign of the calibration voltage"
+            }
+        ]
+    },
+    "globalRegister_1": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "EN_REF_BG",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Activate the TDC bandgap source 1V to the calibration part"
+            },
+            {
+                "name": "FOLLOWER_CTDC_EN",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "1",
+                "description": "Activate the VTC for the bias MASTER CTDC BIAS_N_CTDC bias (pump charge injection)"
+            },
+            {
+                "name": "BIAS_I_CTDC_D[5:3]",
+                "label": "tdc",
+                "bitPosition_MSB": 5,
+                "bitPosition_LSB": 3,
+                "defaultValue": "011",
+                "description": "Configure the VTC the bias CTDC BIAS_N_CTDC bias (pump charge injection current)"
+            },
+            {
+                "name": "COUNTER_PHASE[1:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 2,
+                "bitPosition_LSB": 1,
+                "defaultValue": "00",
+                "description": "Select the global counter 160 MHz phase of the 40 MHz"
+            },
+            {
+                "name": "RST_COUNTER",
+                "label": "tdc",
+                "tag": "tdc_graycounter",
+                "bitPosition": 0,
+                "defaultValue": "1",
+                "description": "1 Enables resetting the TDC Gray Counter. Useful when we can't select the clock phase"
+            }
+        ]
+    },
+    "globalRegister_2": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "VD_CTDC_N_D[3:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 4,
+                "defaultValue": "0000",
+                "description": "4 bits DAC for the VD_CTDC_N voltage"
+            },
+            {
+                "name": "CTRL_IN_CTDC_P_D[4:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "4 bits DAC for the CTRL_CTDC calibration voltage"
+            }
+        ]
+    },
+    "globalRegister_3": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "BIAS_CAL_DAC_CTDC_P_EN",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Activate the VTC for the bias BIAS_CAL_DAC_CTDC_P bias of the current calibration channel"
+            },
+            {
+                "name": "EN_MASTER_CTDC_VOUT_INIT",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "0",
+                "description": "Activate the voltage load in “VD_CTDC_P” of the master CTDC DLL pump charge output"
+            },
+            {
+                "name": "EN_MASTER_CTDC_DLL",
+                "label": "tdc",
+                "bitPosition": 5,
+                "defaultValue": "1",
+                "description": "Activate the CTDC master DLL to provide master CLKs and global channel calibration"
+            },
+            {
+                "name": "BIAS_FOLLOWER_CAL_P_CTDC_EN",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "0",
+                "description": "Enable the VTC follower for the CTDC channel calibration follower bias P"
+            },
+            {
+                "name": "BIAS_FOLLOWER_CAL_P_CTDC_D[3:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "Configure the VTC follower for the CTDC channel calibration follower bias P current"
+            }
+        ]
+    },
+    "globalRegister_4": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "VD_CTDC_P_D[4:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 4,
+                "defaultValue": "0000",
+                "description": "5 bit DAC for the VD_CTDC_P voltage"
+            },
+            {
+                "name": "VD_FTDC_P_D[4:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "4 bits DAC for the VD_FTDC_P voltage"
+            }
+        ]
+    },
+    "globalRegister_5": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "VD_CTDC_N_FORCE_MAX",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Force the VD_CTDC_N voltage to 1,2 V"
+            },
+            {
+                "name": "VD_CTDC_N_DAC_EN",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "0",
+                "description": "Activate the DAC for the VD_CTDC_N voltage"
+            },
+            {
+                "name": "CTRL_IN_FTDC_P_EN",
+                "label": "tdc",
+                "bitPosition": 5,
+                "defaultValue": "0",
+                "description": "Activate the DAC for CTRL_FTDC calibration voltage"
+            },
+            {
+                "name": "CTRL_IN_FTDC_P_SIG",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "0",
+                "description": "Activate the sign of the calibration voltage"
+            },
+            {
+                "name": "CTRL_IN_FTDC_P_D[4:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "4 bits DAC for the CTRL_FTDC calibration voltage"
+            }
+        ]
+    },
+    "globalRegister_6": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "BIAS_FOLLOWER_CAL_P_FTDC_EN",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Enable the VTC follower for the FTDC channel calibration follower bias P"
+            },
+            {
+                "name": "VD_FTDC_P_DAC_EN",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "0",
+                "description": "Activate the DAC for the VD_FTDC_P voltage"
+            },
+            {
+                "name": "VD_FTDC_N_FORCE_MAX",
+                "label": "tdc",
+                "bitPosition": 5,
+                "defaultValue": "1",
+                "description": "Force the VD_FTDC_N voltage to 1.2 V"
+            },
+            {
+                "name": "VD_FTDC_N_DAC_EN",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "0",
+                "description": "Activate the DAC for the VD_FTDC_N voltage"
+            },
+            {
+                "name": "VD_FTDC_N_D[3:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "4 bits DAC for the VD_FTDC_N voltage"
+            }
+        ]
+    },
+    "globalRegister_7": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "EN_MASTER_FTDC_VOUT_INIT",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Activate the voltage load in “VD_FTDC_P” of the master FTDC DLL pump charge output"
+            },
+            {
+                "name": "EN_MASTER_FTDC_DLL",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "1",
+                "description": "Activate the FTDC master DLL to provide master CLKs and global channel calibration"
+            },
+            {
+                "name": "FTDC_CALIB_FREQUENCY[5:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 5,
+                "bitPosition_LSB": 0,
+                "defaultValue": "000010",
+                "description": "FTDC Master DLL calibration period"
+            }
+        ]
+    },
+    "globalRegister_8": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "ON_rtr",
+                "label": "rtr",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Enables Rail-to-Rail amplifiers at ADC input, critical enable!"
+            },
+            {
+                "name": "FOLLOWER_FTDC_EN",
+                "label": "tdc",
+                "bitPosition": 6,
+                "defaultValue": "1",
+                "description": "Activate the VTC for the bias MASTER FTDC BIAS_N_FTDC bias (pump charge injection)"
+            },
+            {
+                "name": "BIAS_I_FTDC_D[5:3]",
+                "label": "tdc",
+                "bitPosition_MSB": 5,
+                "bitPosition_LSB": 3,
+                "defaultValue": "011",
+                "description": "Configure the VTC the bias FTDC BIAS_N_FTDC bias (pump charge injection current)"
+            },
+            {
+                "name": "EN_MASTER_CTDC_START_UP",
+                "label": "tdc",
+                "bitPosition": 2,
+                "defaultValue": "0",
+                "description": "@’0’ Works when the chip is reset or @’1’ forces the CTDC MASTER DLL startup"
+            },
+            {
+                "name": "EN_MASTER_FTDC_START_UP",
+                "label": "tdc",
+                "bitPosition": 1,
+                "defaultValue": "0",
+                "description": "@’0’ Works when the chip is reset or @’1’ forces the FTDC MASTER DLL startup"
+            },
+            {
+                "name": "CALIB_CHANNEL_DLL",
+                "label": "tdc",
+                "bitPosition": 0,
+                "defaultValue": "0",
+                "description": "Activate the automatic calibration of all TDC channel"
+            }
+        ]
+    },
+    "globalRegister_9": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "OFF_buf[3:0]",
+                "label": "probe",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 4,
+                "defaultValue": "1111",
+                "description": "Shunts PA probe column buffer to ground"
+            },
+            {
+                "name": "BIAS_CAL_DAC_CTDC_P_D[3:0]",
+                "label": "tdc",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "Configure the VTC BIAS_CAL_DAC_CTDC_P bias of the current calibration channel"
+            }
+        ]
+    },
+    "globalRegister_10": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "10bitDAC_threshold",
+                "label": "discriminator",
+                "tag": "discri_threshold",
+                "tagOrder": 0,
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 0,
+                "defaultValue": "00000000",
+                "description": "Global discriminator threshold [7:0]"
+            }
+        ]
+    },
+    "globalRegister_11": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "dac_biaspa[5:2]",
+                "label": "preamplifier",
+                "tag": "preamp_bias_dc",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 4,
+                "defaultValue": "0110",
+                "description": "DAC bias PA[5:2] = PA output DC level"
+            },
+            {
+                "name": "dac_biaspa[1:0]",
+                "label": "preamplifier",
+                "tag": "preamp_bias_cs",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 2,
+                "defaultValue": "00",
+                "description": "DAC bias PA[1:0] = PA CS additional current"
+            },
+            {
+                "name": "10bitDAC_threshold",
+                "label": "discriminator",
+                "tag": "discri_threshold",
+                "tagOrder": 1,
+                "bitPosition_MSB": 1,
+                "bitPosition_LSB": 0,
+                "defaultValue": "00",
+                "description": "Global discriminator threshold [9:8]"
+            }
+        ]
+    },
+    "globalRegister_12": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "ref_100uA",
+                "label": "adc",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "TBW"
+            },
+            {
+                "name": "ON_refadc",
+                "label": "adc",
+                "bitPosition": 6,
+                "defaultValue": "1",
+                "description": "TBW"
+            },
+            {
+                "name": "dacb_pulser[5:0]",
+                "label": "injection",
+                "tag": "internal_pulser_6b",
+                "bitPosition_MSB": 5,
+                "bitPosition_LSB": 0,
+                "defaultValue": "000000",
+                "encoding": "inverted",
+                "description": "Internal injection signal amplitude (inverted logic!)"
+            }
+        ]
+    },
+    "globalRegister_13": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "S[1:0]",
+                "label": "rtr",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 6,
+                "defaultValue": "01",
+                "description": "Each bit enables a 77 fF Miller capacitance on RtR output. "
+            },
+            {
+                "name": "dac_bias_rtr[5:2]",
+                "label": "rtr",
+                "bitPosition_MSB": 5,
+                "bitPosition_LSB": 2,
+                "defaultValue": "1000",
+                "description": "Controls vbFCN / vbFCP"
+            },
+            {
+                "name": "dac_bias_rtr[1:0]",
+                "label": "rtr",
+                "bitPosition_MSB": 1,
+                "bitPosition_LSB": 0,
+                "defaultValue": "00",
+                "description": "Controls additional current going in to the RtR input differential pairs"
+            }
+        ]
+    },
+    "globalRegister_14": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "GLOBAL_SEU_TIME_OUT",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "1",
+                "description": "Activate the SEU time-out in the control logic channel"
+            },
+            {
+                "name": "GLOBAL_TA_SELECT_GAIN_TOA[3:2]",
+                "label": "tdc",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 5,
+                "defaultValue": "01",
+                "description": "ToA pulse replicator gain"
+            },
+            {
+                "name": "EN_CLKTDC",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "0",
+                "description": "Not used in EICROC0A"
+            },
+            {
+                "name": "EN_CLKADC",
+                "label": "adc",
+                "bitPosition": 3,
+                "defaultValue": "0",
+                "description": "Not used in EICROC0A"
+            },
+            {
+                "name": "cmd_hyst",
+                "label": "discriminator",
+                "bitPosition": 2,
+                "defaultValue": "1",
+                "description": "TBW"
+            },
+            {
+                "name": "ON_cp",
+                "label": "preamplifier",
+                "tag": "preamp_feedback_cap",
+                "bitPosition": 1,
+                "defaultValue": "1",
+                "description": "Enables feedback cap for preamp, increases probe preamp from 200 to 300 mV"
+            },
+            {
+                "name": "ON_rtest",
+                "label": "injection",
+                "tag": "rtest",
+                "bitPosition": 0,
+                "defaultValue": "1",
+                "description": "Rtest used in the cmd_pulse"
+            }
+        ]
+    },
+    "globalRegister_15": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "GLOBAL_SYNC_OUT",
+                "label": "tdc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Fix the output data synchronization with the edge of the 40 MHz - '0' = rising edge"
+            },
+            {
+                "name": "GLOBAL_MODE_FTDC_TOA[0:1]",
+                "label": "tdc",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 5,
+                "defaultValue": "01",
+                "description": "ToA pulse replicator gain : S0 & S1 for the digital"
+            },
+            {
+                "name": "GLOBAL_FORCE_EN_CLK",
+                "label": "tdc",
+                "bitPosition": 4,
+                "defaultValue": "1",
+                "description": "Force the output data transfer clk (always clock gating) ‘0’ : 2 clk cycles dedicated to 1 data transfer (1 for the data & 1 for the 0 after) (low power mode) ‘1’ : clk is always present for the data transfer (40 MHz power consumption)"
+            },
+            {
+                "name": "GLOBAL_FORCE_EN_OUTPUT_DATA",
+                "label": "tdc",
+                "bitPosition": 3,
+                "defaultValue": "0",
+                "description": "Force the En flag event to ‘1’ (always read ToA)"
+            },
+            {
+                "name": "GLOBAL_MODE_TOA_DIRECT_OUTPUT",
+                "label": "tdc",
+                "bitPosition": 2,
+                "defaultValue": "0",
+                "description": "The output of the ToA TDC are directly connected to the ToA output"
+            },
+            {
+                "name": "GLOBAL_EN_BUFFER_CTDC",
+                "label": "tdc",
+                "bitPosition": 1,
+                "defaultValue": "0",
+                "description": "Enable the buffer of the calibration CTDC channel"
+            },
+            {
+                "name": "GLOBAL_EN_BUFFER_FTDC",
+                "label": "tdc",
+                "bitPosition": 0,
+                "defaultValue": "0",
+                "description": "Enable the BUFFER of the calibration FTDC channel"
+            }
+        ]
+    },
+    "globalRegister_16": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "delay7[2:0]",
+                "label": "adc",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 5,
+                "defaultValue": "010",
+                "description": "Delay bits used for the ADC"
+            },
+            {
+                "name": "delay65[2:0]",
+                "label": "adc",
+                "bitPosition_MSB": 4,
+                "bitPosition_LSB": 2,
+                "defaultValue": "010",
+                "description": "Delay bits used for the ADC"
+            },
+            {
+                "name": "delay43[2:1]",
+                "label": "adc",
+                "bitPosition_MSB": 1,
+                "bitPosition_LSB": 0,
+                "defaultValue": "01",
+                "description": "Delay bits used for the ADC"
+            }
+        ]
+    },
+    "globalRegister_17": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "delay43[0]",
+                "label": "adc",
+                "bitPosition": 7,
+                "defaultValue": "0",
+                "description": "Delay bits used for the ADC"
+            },
+            {
+                "name": "delay20[2:0]",
+                "label": "adc",
+                "bitPosition_MSB": 6,
+                "bitPosition_LSB": 4,
+                "defaultValue": "010",
+                "description": "Delay bits used for the ADC"
+            },
+            {
+                "name": "ON_dac_cor_1uA",
+                "label": "control",
+                "bitPosition": 3,
+                "defaultValue": "1",
+                "description": "TBW"
+            },
+            {
+                "name": "EN_NOR16",
+                "label": "probe",
+                "bitPosition": 2,
+                "defaultValue": "1",
+                "description": "Enable NOR16"
+            },
+            {
+                "name": "DIS_clkgating",
+                "label": "adc",
+                "bitPosition": 1,
+                "defaultValue": "1",
+                "description": "Disable clock gating - Clockgating used on the ADC"
+            },
+            {
+                "name": "ON_ref_cor_1uA",
+                "label": "control",
+                "bitPosition": 0,
+                "defaultValue": "1",
+                "description": "TBW"
+            }
+        ]
+    },
+    "globalRegister_18": {
+        "width": 8,
+        "fields": [
+            {
+                "name": "probe_dc2",
+                "label": "probe",
+                "tag": "probe_dc2",
+                "bitPosition_MSB": 7,
+                "bitPosition_LSB": 4,
+                "defaultValue": "0000",
+                "description": "Used to look at DC signals define above"
+            },
+            {
+                "name": "probe_dc1",
+                "label": "probe",
+                "tag": "probe_dc1",
+                "bitPosition_MSB": 3,
+                "bitPosition_LSB": 0,
+                "defaultValue": "0000",
+                "description": "Used to look at DC signals define above"
+            }
+        ]
+    }
+}
