@@ -119,6 +119,7 @@ static int gpio_init()
         gpio_reg_wr = gpio ;
         gpio_reg_rd = gpio+2 ;
 
+	*gpio = 0 ;	// to cleanup
 
 	u_int version = gpio_rd(8) ;
 

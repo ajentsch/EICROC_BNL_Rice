@@ -3,10 +3,10 @@ include ../rtsmakefile.def
 
 #LDLIBS+= -lmosquitto
 
-
+LIBS = zcu106lib.o
 BINS = zcu106 decoder ana_dta
 
-all: $(BINS)
+all: $(BINS) $(LIBS)
 
 zcu106 : zcu106.o ../ALEX/alex_zcu.o
 
@@ -20,6 +20,7 @@ depend:
 clean:
 	@$(CLEAN) $(BINS)
 
+zcu106lib.o : zcu106lib.C
 
 save:
 	scp -p zcu106 ana_dta decoder Ljubicic@bonner-muon.rice.edu:code
@@ -37,3 +38,5 @@ zcu106.o: ../ZCU106/zcu106.h
 zcu106.o: ../ALEX/alex_zcu.h
 zcu106_c.o: ../LOG/rtsLog.h
 zcu106_c.o: zcu106_c.h
+zcu106lib.o: ../LOG/rtsLog.h
+zcu106lib.o: ../ZCU106/zcu106lib.h

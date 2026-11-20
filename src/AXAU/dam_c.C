@@ -29,6 +29,8 @@ int dam_c::lpgbt_vtrx()
 	u_int ver ;
 	u_int tx_ena ;
 
+	LOG(NOTE,"VTRX should be device 0x50 on bus #2") ;
+
 	ver = lpgbt_i2c_read(2,0x50,0x15) ;	// ID: should be 0x15
 	if(ver != 0x15) {
 		LOG(ERR,"VTRX: version reg 0x15 = 0x%02X",ver) ;
@@ -49,7 +51,7 @@ int dam_c::lpgbt_vtrx()
 	}
 
 	
-	LOG(INFO,"VTRX: V 0x%02X, UID 0x%08X, TX enables 0x%X, SEUs %u",ver,uid,tx_ena,seu) ;
+	LOG(INFO,"VTRX+: V 0x%02X, UID 0x%08X, TX enables 0x%X, SEUs %u",ver,uid,tx_ena,seu) ;
 	
 	return 0 ;
 }
@@ -58,15 +60,17 @@ int dam_c::lpgbt_vtrx()
 u_int dam_c::lpgbt_user_id(u_int uid) 
 {
 	if(uid==0xFFFFFFFF) {
-
+		// just read
 	}
 	else {
+		// set
 		lpgbt_write(0x004,(uid>>0)&0xFF) ;
 		lpgbt_write(0x005,(uid>>8)&0xFF) ;
 		lpgbt_write(0x006,(uid>>16)&0xFF) ;
 		lpgbt_write(0x007,(uid>>24)&0xFF) ;
 	}
 
+	// and readback
 	uid = 0 ;
 
 	uid |= (lpgbt_read(0x004)<<0) ;
@@ -327,26 +331,31 @@ int dam_c::lpgbt_init(int level)
 	u_int ver  = lpgbt_read(0x1D7) ;
 	if(ver != 0xA6) {
 		LOG(ERR,"lpGBT: wrong version 0x%02X (not 0xA6)",ver) ;
+		ret = -1 ;
 	}
 
 	switch(ver) {
 	case 0xA5 :
 		cver = "V0" ;
+		LOG(ERR,"lpGBT version 0x%X??",ver) ;
 		break ;
 	case 0xA6 :
 		cver = "V1" ;
 		break ;
 	default :
 		cver = "UNKNOWN" ;
+		LOG(ERR,"lpGBT version 0x%X??",ver) ;
 		break ;
 	}
 
-	LOG(INFO,"lpGBT: %s[0x%02X], CHIP_ID 0x%08X, USER_ID 0x%08X",cver,ver,lpgbt_chip_id(),lpgbt_user_id(0xFFFFFFFF)) ;
 	user_id = lpgbt_user_id(0xFFFFFFFF) ;
 
-	LOG(INFO,"lpGBT: setting USER_ID to 0x%08X",lpgbt_user_id(0x00FF)) ;
+	LOG(INFO,"lpGBT: %s[0x%02X], CHIP_ID 0x%08X, USER_ID 0x%08X",cver,ver,lpgbt_chip_id(),user_id) ;
+
+
+	LOG(NOTE,"lpGBT: setting USER_ID to 0x%08X",lpgbt_user_id(0x00FF)) ;
 	if(user_id!=0xAAFF) {
-		LOG(WARN,"    lpGBT power-cycled...") ;
+		LOG(WARN,"    lpGBT power-cycled: user_id 0x%08X",user_id) ;
 	}
 
 	lpgbt_vtrx() ;
@@ -509,7 +518,7 @@ int dam_c::lpgbt_init(int level)
 
 	LOG(INFO,"lpGBT: setting downlink/EDOUT rate to %3d Mbs",real_rate) ;
 	for(int g=0;g<4;g++) {
-		LOG(TERR,"lpGBT: EDOUT group %d, enabled 0x%X",g,edout_ena[g]) ;
+		LOG(NOTE,"lpGBT: EDOUT group %d, enabled 0x%X",g,edout_ena[g]) ;
 	}
 
 	lpgbt_write(0x0A8,(rate<<6)|(rate<<4)|(rate<<2)|(rate<<0)) ;
@@ -598,7 +607,7 @@ int dam_c::lpgbt_init(int level)
 	for(int reg=0x0C8;reg<=0xCE;reg++) {	// go over 7 groups of input
 		lpgbt_write(reg,(edin_ena[i]<<4)|(rate<<2)|(mode<<0)) ;	// enable group 
 
-		LOG(TERR,"lpGBT: EDIN enable group %d 0x%X (@0x%03X)",i,edin_ena[i],reg) ;
+		LOG(NOTE,"lpGBT: EDIN enable group %d 0x%X (@0x%03X)",i,edin_ena[i],reg) ;
 		i++ ;
 	}
 
@@ -1300,13 +1309,13 @@ int dam_c::clock_check(int do_log)
 		c[i] = reg_r(16+i+1) ;
 	}
 
-	LOG(INFO,"CLK_160 used %.3f",(float)c[0]/10000.0) ;
-	LOG(INFO,"CLK_250 used %.3f",(float)c[1]/10000.0) ;
-	LOG(INFO,"CLK_40 used %.3f",(float)c[2]/10000.0) ;
-	LOG(INFO,"CLK_320_gth %.3f",(float)c[3]/10000.0) ;
-	LOG(INFO,"CLK_320_gth_rx %.3f",(float)c[4]/10000.0) ;
-	LOG(INFO,"CLK_250_pcie %.3f",(float)c[5]/10000.0) ;
-	LOG(INFO,"CLK_fmc_98 %.3f",(float)c[6]/10000.0) ;
+	LOG(NOTE,"CLK_160 used %.3f",(float)c[0]/10000.0) ;
+	LOG(NOTE,"CLK_250 used %.3f",(float)c[1]/10000.0) ;
+	LOG(NOTE,"CLK_40 used %.3f",(float)c[2]/10000.0) ;
+	LOG(NOTE,"CLK_320_gth %.3f",(float)c[3]/10000.0) ;
+	LOG(NOTE,"CLK_320_gth_rx %.3f",(float)c[4]/10000.0) ;
+	LOG(NOTE,"CLK_250_pcie %.3f",(float)c[5]/10000.0) ;
+	LOG(NOTE,"CLK_fmc_98 %.3f",(float)c[6]/10000.0) ;
 
 	// check frequency
 	int f_gth = reg_r(16+1+3) ;
@@ -1323,6 +1332,7 @@ int dam_c::clock_check(int do_log)
 int dam_c::status()
 {
 	u_int v ;
+	int ret ;
 
 	// General board status
 	v = reg_r(16) ;
@@ -1333,10 +1343,12 @@ int dam_c::status()
 	if((v&((f_ix-1)<<28))) ;
 	else if((v&v_mask) != 0xEE000000) {
 		LOG(ERR,"slv100: 0x%08X",v) ;
+		ret = -1 ;
 	}
 
 	if(!(v&(1<<21))) {
 		LOG(ERR,"PCIe link NOT up.") ;
+		ret = -1 ;
 	}
 
 //	Only with TEF0008
@@ -1350,6 +1362,7 @@ int dam_c::status()
 
 	if(abs(f_gth-f_gth_rx)>5) {
 		LOG(ERR,"GTH: clock TX %u differs from clock RX %u",f_gth,f_gth_rx) ;
+		ret = -1 ;
 	}
 	
 
@@ -1362,6 +1375,7 @@ int dam_c::status()
 	// flickers and it is supposedly not stable
 	if((gt_stat&0xFE) != 0xFE) {
 		LOG(ERR,"gt_status: 0x%04X",gt_stat) ;
+		ret = -1 ;
 	}
 
 	// analyze lp_stat
@@ -1377,11 +1391,13 @@ int dam_c::status()
 
 	if(!d_rdy) {
 		LOG(ERR,"Downlink not ready!") ;
+		ret = -1 ;
 	}
 
 	// should not happen
 	if(reg_r(0x400+4)&(1<<3)) {
 		LOG(ERR,"Waiting for lpgbt_snd...") ;
+		ret = -1 ;
 	}
 
 	// Should not happen -- encapsulated in lpgbt_read/write
@@ -1389,6 +1405,8 @@ int dam_c::status()
 		LOG(ERR,"Previous lpgbt_snd complete -- clearing.") ;
 		LOG(ERR,"    Data was 0x%08X 0x%08X 0x%08X",reg_r(0x400+7),reg_r(0x400+6),reg_r(0x400+5)) ;
 		reg_wp(0x400+4,3) ;
+
+		ret = -1 ;
 	}
 
 
@@ -1396,10 +1414,12 @@ int dam_c::status()
 	if(u_err) {
 		LOG(ERR,"lpGBT Uplink ERROR") ;
 		reg_wp(0x404,4) ;
+		ret = -1 ;
 	}
 
 	if(!u_rdy) {
 		LOG(ERR,"UPLINK NOT READY! ... but continuing anyway...") ;
+		ret = -1 ;
 	}
 
 	// uplink done
@@ -1410,6 +1430,7 @@ int dam_c::status()
 	if(u_overrun) {
 		LOG(ERR,"lpgbt rcv overrun -- clearing") ;
 		reg_wp(0x400+4,5) ;
+		ret = -1 ;
 	}
 
 #if 0
@@ -1420,7 +1441,7 @@ int dam_c::status()
 	}
 #endif
 
-	return 0 ;
+	return ret ;
 }
 
 u_int dam_c::lpgbt_read(u_short reg)
@@ -2040,9 +2061,13 @@ int dam_c::init()
 	}
 
 
-	LOG(TERR,"Versions? 0x%08X 0x%08X",reg_r(14),reg_r(15)) ;
+	LOG(NOTE,"Versions? 0x%08X 0x%08X",reg_r(14),reg_r(15)) ;
+
+	LOG(INFO,"FW version all \"%s\"[0x%08X]",hwicap_version(reg_r(15)),reg_r(15)) ;
 
 	// check for power-up of AXAU15
+#if 0
+	// I can't use regs 14 and 15!
 	if(reg_r(15)==0xABCD1234) ;	// 
 	else {	// just after power-up: zap em all
 
@@ -2053,10 +2078,9 @@ int dam_c::init()
 		LOG(WARN,"AXAU15 seems to have been powered up (0x%08X, 0x%08X)",bitfile_version, all_version) ;
 
 //		for(int i=1;i<16;i++) reg_w(i,0) ;	// zap em all
-
 //		reg_w(15,0xABCD1234) ;	// set marker
 	}
-
+#endif
 
 
 	clock_check(1) ;
@@ -2107,7 +2131,7 @@ dam_c::dam_c(const char *usb_dev)
 
 
 
-	LOG(INFO,"DAM %d: constructor: mode %s",
+	LOG(NOTE,"%d: constructor: mode %s",
 	    dam_ix,usb_dev?usb_dev:"PCIe") ;
 
 
@@ -2159,7 +2183,12 @@ dam_c::dam_c(const char *usb_dev)
 			memset((void *)resmem_glo, 0xAB, resmem_bytes_glo) ;
 		}
 
-		LOG(INFO,"RESMEM: %u MB @ 0x%08X, (0x%08X)",resmem_bytes_glo/1024/1024,resmem_hwaddr_glo,first_val) ;
+		if(resmem_bytes_glo==0) {
+			LOG(WARN,"RESMEM: %u MB @ 0x%08X, (0x%08X)",resmem_bytes_glo/1024/1024,resmem_hwaddr_glo,first_val) ;
+		}
+		else {
+			LOG(INFO,"RESMEM: %u MB @ 0x%08X, (0x%08X)",resmem_bytes_glo/1024/1024,resmem_hwaddr_glo,first_val) ;
+		}
 	}
 
 	
@@ -2210,7 +2239,7 @@ dam_c::dam_c(const char *usb_dev)
 
 int dam_c::lpgbt_reset()
 {
-	int ret = 0 ;
+	int ret = -1 ;
 	u_int val ;
 
 	LOG(WARN,"lpGBT: issuing RESET -- expect some ERROR messages...") ;
@@ -2259,14 +2288,14 @@ int dam_c::lpgbt_reset()
 	status() ;
 	if(val==0xA6) {
 		LOG(INFO,"lpGBT: RESET-to-READY successfull at attempt %d.",i+1) ;
-		ret = 1 ;
+		ret = 0 ;
 		break ;
 	}
 	}
 
 //	clock_check(1) ;
 
-	if(ret==0) {
+	if(ret != 0) {
 		LOG(ERR,"lpGBT: RESET failed!") ;
 	}
 
