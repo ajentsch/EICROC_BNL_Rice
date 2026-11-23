@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/time.h>
@@ -7,13 +8,17 @@
 #include <signal.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
+
 
 #include <LOG/rtsLog.h>
 volatile int rtsLogLevel = 2 ;	// WARN and above
 
 #include <AXAU/eicroc_c.h>
 
-extern int alex_eicroc(eicroc_c *eic) ;
+extern int alex_zcu106(eicroc_c *eic) ;
+
+
 
 
 /*************** Internal Helper ******************/
@@ -32,11 +37,53 @@ static void sighandler(int sig)
 }
 #endif
 
+/* Split a line into argv-style tokens (in place).
+   Supports 'single quotes', "double quotes" and backslash escapes. */
+static char **split_args(char *s, int *argc_out)
+{
+    size_t cap = 8, n = 1;                 /* slot 0 is reserved for argv[0] */
+    char **v = (char **)malloc(cap * sizeof *v);
+    if (!v) return NULL;
+    v[0] = NULL;
+
+    char *r = s;
+    for (;;) {
+        while (isspace((unsigned char)*r)) r++;
+        if (!*r) break;
+
+        char *start = r, *w = r, quote = 0;
+        for (; *r; r++) {
+            if (quote) {
+                if (*r == quote)                          quote = 0;
+                else if (quote == '"' && *r == '\\' && r[1]) *w++ = *++r;
+                else                                      *w++ = *r;
+            } else if (*r == '\'' || *r == '"')           quote = *r;
+            else if (*r == '\\' && r[1])                  *w++ = *++r;
+            else if (isspace((unsigned char)*r)) { r++; break; }
+            else                                          *w++ = *r;
+        }
+        *w = '\0';
+
+        if (n + 2 > cap) {
+            cap *= 2;
+            char **tmp = (char **)realloc(v, cap * sizeof *v);
+            if (!tmp) { free(v); return NULL; }
+            v = tmp;
+        }
+        v[n++] = start;
+    }
+    v[n] = NULL;
+    *argc_out = (int)n;
+    return v;
+}
+
+
+
 int main(int argc, char *argv[])
 {
 	int c ;
 	int ret ;
-	int num_events = 1 ;
+	int inetd = 0 ;
 
 	rtsLogLevel = 2 ;	// default; 
 
@@ -70,14 +117,54 @@ int main(int argc, char *argv[])
 	eic->usb_dev = 0 ;	// direct access
 
 	// my defaults
-	eic->rdo_type = RDO_AXAU15 ;	
+	eic->rdo_type = RDO_ZCU106 ;	
 	eic->feb_type = FEB_OMEGA ;
 	eic->asic_type = ASIC_EICROC1 ;
 
+	eic->num_events = 1 ;
+
+//	setvbuf(stdout, 0, _IOLBF, BUFSIZ) ;
+//	setvbuf(stderr, 0, _IOLBF, BUFSIZ) ;
+
+	LOG(INFO,"%s: compiled on %s %s",argv[0],__TIME__,__DATE__) ;	
+
 
 	
+	int use_argc = 1 ;
+	char **use_argv ;
 
-	while((c=getopt(argc,argv,"D:d:m:n:W:w:M:C:A:t:l:G:v:p:R:f:T:F:h?")) != EOF) {
+	if(argc==2 && strcmp(argv[1],"-s")==0) {
+		LOG(INFO,"Enter parameters: ") ;
+		fflush(stderr) ;
+
+		char *line = 0 ;
+		size_t cap = 0 ;
+		if(getline(&line,&cap,stdin)<0) {
+			LOG(ERR,"No arguments: exiting") ;
+			return -1 ;
+		}
+
+		line[strlen(line)-1]=0 ;
+
+		LOG(INFO,"Entered \"%s\"",line) ;
+		fflush(stderr) ;
+
+		int n ;
+		char **v = split_args(line,&n) ;
+		v[0] = argv[0] ;
+
+		use_argc = n ;
+		use_argv = v ;
+
+		// this leaves some memory dangling but who cares
+	}
+	else {
+		use_argc = argc ;
+		use_argv = argv ;
+	}
+
+
+	while((c=getopt(use_argc, use_argv,":D:d:m:n:W:w:M:C:A:t:l:G:v:p:R:f:T:F:h?is")) != EOF) {
 	switch(c) {
 	case 'D' :
 		rtsLogLevel = atoi(optarg) ;
@@ -91,7 +178,7 @@ int main(int argc, char *argv[])
 		}
 		break ;
 	case 'n' :
-		num_events = atoi(optarg) ;
+		eic->num_events = atoi(optarg) ;
 		break ;
 	case 'M' :
 		if((ret=sscanf(optarg,"0x%X",&eic->rdo_mode))<=0) {
@@ -141,9 +228,19 @@ int main(int argc, char *argv[])
 	case 'T' :	// threshold per pixel; common to all
 		eic->vthr = atoi(optarg) ;
 		break ;
+	case 's' :
+		inetd = 1 ;
+		LOG(WARN,"Running under inetd -- not implemented") ;
+		printf("And this to stdout %d\n",inetd) ;
+		return -1 ;
 	case 'h' :
-	case '?' :
 		LOG(ERR,"There is no help available. RTFM. Goodbye.") ;
+		return -1 ;
+	case '?' :
+		LOG(ERR,"Option -%c is unknown. RTFM. Goodbye.",optopt) ;
+		return -1 ;
+	case ':' :
+		LOG(ERR,"Option -%c requires and argument. Goodbye.",optopt) ;
 		return -1 ;
 	default :
 		LOG(ERR,"Unknown parameter flag %c",c) ;
@@ -152,7 +249,7 @@ int main(int argc, char *argv[])
 	}
 
 
-	LOG(INFO,"%s: compiled on %s %s",argv[0],__TIME__,__DATE__) ;
+
 
 
 	ret = eic->init() ;			// ALWAYS first
@@ -212,9 +309,9 @@ int main(int argc, char *argv[])
 	}
 
 	if((eic->mode & 0x200)==0x200) {	// Alex
-		LOG(ERR,"Calling Alex code -- not yet done") ;
-//		if(alex_eicroc(eic)<0) {
-//			LOG(INFO,"alex_eicroc requests termination. Bye.") ;
+		LOG(WARN,"Calling Alex code -- not yet implemented") ;
+//		if(alex_zcu106(eic)<0) {
+//			LOG(INFO,"alex_zcu requests termination. Bye.") ;
 //			return 0 ;
 //		}
 	}
@@ -223,7 +320,7 @@ int main(int argc, char *argv[])
 	// And now I start a run, if requested
 	if(eic->mode & 2) {
 		FILE *f = stdout ;	// for now
-		ret = eic->run_start(f,num_events) ;
+		ret = eic->run_start(f,eic->num_events) ;
 	}
 
 	LOG(INFO,"Done. Exiting.") ;

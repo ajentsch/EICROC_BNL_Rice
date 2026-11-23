@@ -9,11 +9,11 @@ BINS = eicroc machine parser dam_test eicroc_old
 all: $(BINS)
 
 # also search here for sources:
-vpath %.C ../ZCU106
+vpath %.C ../ZCU106 ../ALEX
 
 dam_test : dam_test.o dam_c.o rbv1.o
 
-eicroc : eicroc.o eicroc_c.o dam_c.o regjson.o jparse.o rbv1.o zcu106lib.o
+eicroc : eicroc.o eicroc_c.o dam_c.o regjson.o jparse.o rbv1.o zcu106lib.o alex_zcu.o
 
 parser : parser.o
 
@@ -26,7 +26,16 @@ clean:
 	@$(CLEAN) $(BINS)
 
 save:
-#	cp -a zcu106.C /home/epic/tonko
+	cp -a eicroc /RTS/bin
+
+TARGET ?= petalinux@peta1
+DEST ?= src/AXAU
+PW ?= user
+
+FILES := eicroc.C eicroc_c.C eicroc_c.h dam_c.C dam_c.h
+
+scp: $(FILES)
+	sshpass -p '$(PW)' scp -p -o StrictHostKeyChecking=no $(FILES) $(TARGET):$(DEST)/
 
 # DO NOT DELETE
 

@@ -156,19 +156,8 @@ int main(int argc, char **argv)
         }
 	}
 
-//	LOG(TERR,"optind is %d",optind) ;
-//	for(int i=optind;i<argc;i++) {
-//		LOG(TERR,"operand %s",argv[i]) ;
-//	}
-
-	char cmd[256] ;
-	cmd[0] = 0 ;
-	for(int i=optind;i<argc;i++) {
-		strcat(cmd,argv[i]) ;
-		strcat(cmd," ") ;
-	}
-
-
+	
+	// get the host and port from -H
 	if (parse_hostport(hp, host, sizeof host, port, sizeof port) < 0) {
 		LOG(ERR,"bad -H argument: %s", hp ? hp : "");
 		return 2;
@@ -176,6 +165,7 @@ int main(int argc, char **argv)
 
 	signal(SIGPIPE, SIG_IGN);   /* get EPIPE from writes instead of dying */
 
+	// connect
 	struct conn c;
 	if (conn_open(&c, host, port) < 0) {
 		LOG(ERR,"connection failed to %s:%s [%s]",host,port,strerror(errno)) ;
@@ -186,48 +176,49 @@ int main(int argc, char **argv)
 	
 	LOG(INFO,"connected to %s:%s", host, port);
 
-	/* Demo: send a line, then copy whatever comes back to stdout. */
-	if(cmd[0]==0) {
+
+	// concatenate all the parameters after "--" into 1 string and pass it to the remote eicroc
+	char cmd[256] ;
+	cmd[0] = 0 ;
+	for(int i=optind;i<argc;i++) {
+		strcat(cmd,argv[i]) ;
+		strcat(cmd," ") ;
+	}
+
+	if(cmd[0]==0) {	// oh, well... use defaults
 		fprintf(c.out, "-R 1 -A 0 -F 0 -m 1\n");
 	}
 	else {
 		fprintf(c.out, "%s\n",cmd);
 	}
 
-	fflush(c.out);
+	fflush(c.out);	// goes to the remote gost...
 
 	char buf[65536];
-
-
 	
+	// and now start reading...
 	while(!feof(c.in)) {
 		if(fgets(buf,sizeof(buf),c.in)==0) {
 			LOG(NOTE,"Read 0?") ;
 			continue ;
 		}
 
-		if(strstr(buf," [line ")) {
+		if(strstr(buf," [line ")) {		// signature of the LOG
 			fprintf(stderr,"%s",buf) ;
 		}
-		else if(strstr(buf," STARTING BINARY")) {
+		else if(strstr(buf,"STARTING BINARY")) {	// for later use
 			LOG(INFO,"Binary starting") ;
 		}
 		else {
-			printf("%s",buf) ;
+			printf("%s",buf) ;		// data to stdout
 		}
 	}
 
 #if 0
+	// this will be used for binary data later on...
 	size_t n;
 	while ((n = fread(buf, 1, sizeof buf, c.in)) > 0) {
 		LOG(TERR,"Read %d bytes",n) ;
-
-//		if(strstr(buf," [line ")) {
-//			fwrite(buf, 1, n, stderr) ;
-//		}
-//		else {
-//			fwrite(buf, 1, n, stdout);
-//		}
 	}
 
 #endif
