@@ -38,8 +38,15 @@ int eicroc_decoder_c::evt_start()
 int eicroc_decoder_c::ssc(char *buff, u_int *datum)
 {
 	int l, e ;
+	int ret ;
 
-	int ret = sscanf(buff,"Evt %d: %d = 0x%X",&e,&l,datum) ;
+	// first try with lines starting with 0x
+	ret = sscanf(buff,"0x%X",datum) ;
+	if(ret==1) return 1 ;	// all good: a valid datum
+	
+	// alright, now try with the pre 23Nov format
+
+	ret = sscanf(buff,"Evt %d: %d = 0x%X",&e,&l,datum) ;
 	if(ret==3) return 1 ;	// all good: a valid datum
 	return 0 ;		// some other line
 }
@@ -275,18 +282,21 @@ int eicroc_decoder_c::decode(char *buff)
 	if(rbv1_fmt) return rbv1(datum) ;
 	else if(state==0 && l_cou==0 && datum==0xABCDFFFF) return rbv1(datum) ;
 
+//	printf(".... 0x%08X\n",datum) ;
 
 	re_state: ;
 	
-	LOG(DBG,"state %d",state) ;
+	LOG(DBG,"state %d: 0x%08X",state,datum) ;
 
 	switch(state) {
 
 	case 0 :	// wait for header
 		hdr[l_cou] = datum ;
+
 		if(l_cou==(hdr_len-1)) {		// end-of-header, just 2 words
 			if(hdr[0]!=0x87654321) {
-				if(hdr[0]==0xABCDFFFF) {	// RBv1
+				switch(hdr[0]) {		
+				case 0xABCDFFFF :	// RBv1
 					LOG(TERR,"RBv1, hdr_len %d",hdr_len) ;
 					asic_type = 1 ;		// EICROC1
 
@@ -305,8 +315,24 @@ int eicroc_decoder_c::decode(char *buff)
 					is_fcmd = 1 ;
 
 					if(l_cou==17) state = 1 ;
-				}
-				else {
+
+					break ;
+/*
+				case 0xABCD1000 :	// new, Nov 2026 with 3 ASICs
+					asic_type = 0 ;
+					col_max = 1 ;
+					row_max = 16 ;
+					state = 11 ;
+					is_fcmd = 0 ;
+					
+					bit_cou = 0 ;	// wha?
+
+					word_cou = 820 ;
+
+					LOG(ERR,"Not coded yet") ;
+					break ;
+*/
+				default :
 					hdr_len = 2 ;
 
 					word_cou = hdr[1]&0xFFFF ;
@@ -314,7 +340,9 @@ int eicroc_decoder_c::decode(char *buff)
 					asic_type = (hdr[1]>>28)&0xF ;
 					bit_cou = 0 ;
 
-				
+					LOG(NOTE,"0x%08X: asic_type %d, fmt %d, words %d",hdr[0],asic_type, fmt_type,word_cou) ;
+					
+					dout_bits = 0 ;
 
 					if(asic_type==0) {	// EICROC0A
 						col_max = 1 ;
@@ -337,9 +365,11 @@ int eicroc_decoder_c::decode(char *buff)
 					}
 
 					l_cou = 0 ;
+					break ;
 				}
 			}
-			else {	// OLD FW
+			else {	// VEEERY OLD FW
+				LOG(WARN,"Very old FW!") ;
 
 				word_cou = 8000 ;
 				fmt_type = 0 ;
@@ -375,7 +405,14 @@ int eicroc_decoder_c::decode(char *buff)
 		}
 		l_cou++ ;
 
-		if(l_cou>=word_cou) state = 22 ;
+		if(l_cou==1) {
+			LOG(NOTE,"l_cou %d/%d at 0x%08X",l_cou,word_cou,datum) ;
+		}
+		if(l_cou>=word_cou) {
+			LOG(NOTE,"l_cou %d/%d at 0x%08X",l_cou,word_cou,datum) ;
+			state = 22 ;
+			goto re_state ;
+		}
 		
 		break ;
 	case 22 :
@@ -385,6 +422,7 @@ int eicroc_decoder_c::decode(char *buff)
 		u_char byte[30] ;
 
 		for(int b=0;b<8;b++) {
+			//printf("... b %d %d\n",b,dout[b]) ;
 			if(dout[b]==1) {
 				b_start = b ;
 				lane_had_bits[0] = 1 ;
@@ -392,7 +430,12 @@ int eicroc_decoder_c::decode(char *buff)
 			}
 		}
 			
+//		printf("b_start %d, d_out bits %d\n",b_start,dout_bits) ;
+
 		b_start += 3 ;		// add a few bits to center around the data bit
+
+//		b_start += 4 ;
+
 		int och_cou = 7 ;
 		int och = 0 ;
 		int row = 0 ;
@@ -410,12 +453,19 @@ int eicroc_decoder_c::decode(char *buff)
 				byte[c_cou] = och ;
 
 				//printf("%d = 0x%02X\n",c_cou,och) ;
+
 				och_cou= 7 ;
 				och = 0 ;
 				
 				if(c_cou==24) {
 
 					pixel[0][row].hdr = byte[0] ;
+
+					if(pixel[0][row].hdr != 0xAC) {
+						LOG(ERR,"Header error: evt %d: CR %d:%d = 0x%02X (not 0xAC)",evt,
+						    0,row,
+						    pixel[0][row].hdr) ;
+					}
 
 					//printf("Row %d, hdr 0x%02X\n", row, byte[0]) ;
 
@@ -444,11 +494,14 @@ int eicroc_decoder_c::decode(char *buff)
 						}
 					}
 
-					b +=24 ;
+					b +=24 ;	// skip 3 bits at the end
+
 					c_cou = 0 ;
 					row++ ;
+					//printf("row %d\n",row) ;
+
 					if(row==16) {
-						//LOG(TERR,"to state 2") ;
+						LOG(NOTE,"to state 2") ;
 						state = 2 ;	// grab trailer
 						goto re_state ;
 					}
@@ -459,9 +512,10 @@ int eicroc_decoder_c::decode(char *buff)
 
 		}
 
+		//printf("Done with bits\n") ;
 		}
 
-
+		LOG(NOTE,"End of state 22") ;
 		break ;
 	case 1 :
 
@@ -533,15 +587,15 @@ int eicroc_decoder_c::decode(char *buff)
 			state = 3 ;
 			goto re_state ;
 		}
-		else if(datum==0xCDEFEC01) {
+		else if(datum==0xCDEFEC01 || datum==0xCDEF1000) {	// start of trailer
 			trl_cou = 0 ;
 			trl[trl_cou++] = datum ;
 		}
 		else if(trl_cou) {
 			trl[trl_cou++] = datum ;
 			if(trl_cou==8) {
-				if(trl[3]&0xFF) {
-					LOG(ERR,"Evt %d: timeout, no data was sent",evt) ;
+				if(trl[3]&0x1F) {
+					LOG(ERR,"Evt %d: timeout, no data was sent [0x%08X]",evt,trl[3]) ;
 				}
 				state = 3 ;
 				goto re_state ;		// continue to state==3 without a new call

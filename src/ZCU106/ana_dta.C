@@ -34,6 +34,10 @@ static u_char lane_use[32] ;
 
 static int ped_add() 
 {
+//	for(int i=0;i<8;i++) {
+//		printf("Evt %d: Header %d: 0x%08X, trl 0x%08X\n",evts,i,decoder.hdr[i],decoder.trl[i]) ;
+//	}
+
 	for(int c=0;c<decoder.col_max;c++) {
 
 //	printf("%d %d\n",c,decoder.lane_had_bits[c/4]) ;
@@ -41,6 +45,8 @@ static int ped_add()
 	if(decoder.lane_had_bits[c/4]) {
 		lane_use[c] = 1 ;
 	}
+
+
 
 	for(int r=0;r<decoder.row_max;r++) {
 		u_int flag = 0 ;
@@ -94,7 +100,7 @@ static int ped_add()
 		}
 
 		if(flag && any) {
-			LOG(WARN,"Evt %d: pixel %d:%d flag 0x%X",evts,c,r,flag) ;
+			LOG(NOTE,"Evt %d: pixel %d:%d flag 0x%X",evts,c,r,flag) ;
 		}
 
 		flags[c][r] |= flag ;

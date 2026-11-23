@@ -28,6 +28,10 @@ clean:
 save:
 	cp -a eicroc /RTS/bin
 
+install:
+	$(INSTALL) eicroc /RTS/bin
+
+
 TARGET ?= petalinux@peta1
 DEST ?= src/AXAU
 PW ?= user

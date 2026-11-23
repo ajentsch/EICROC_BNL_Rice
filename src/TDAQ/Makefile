@@ -19,6 +19,9 @@ clean:
 save:
 	cp -a $(BINS) /RTS/bin
 
+install:
+	@$(INSTALL) tdaq /RTS/bin
+
 # DO NOT DELETE
 
 tdaq.o: ../LOG/rtsLog.h

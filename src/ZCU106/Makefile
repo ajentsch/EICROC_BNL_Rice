@@ -4,7 +4,7 @@ include ../rtsmakefile.def
 #LDLIBS+= -lmosquitto
 
 LIBS = zcu106lib.o
-BINS = zcu106 decoder ana_dta
+BINS = decoder ana_dta zcu106
 
 all: $(BINS) $(LIBS)
 
@@ -23,7 +23,11 @@ clean:
 zcu106lib.o : zcu106lib.C
 
 save:
-	scp -p zcu106 ana_dta decoder Ljubicic@bonner-muon.rice.edu:code
+	cp -a $(BINS) /RTS/bin
+#	scp -p zcu106 ana_dta decoder Ljubicic@bonner-muon.rice.edu:code
+
+install:
+	@$(INSTALL) ana_dta decoder /RTS/bin
 
 # DO NOT DELETE
 

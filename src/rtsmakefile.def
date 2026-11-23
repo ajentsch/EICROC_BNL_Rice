@@ -10,7 +10,9 @@ CXXFLAGS = -O3 -Wall -m64 -Wno-format  -pipe -fverbose-asm $(INCLUDES)
 LDFLAGS += -m64 
 
 export MAKEDEPEND =  makedepend -Y -w7 -- ${CXXFLAGS} -- *.cxx *.C *.h *.c *.hh 2>rts.makedepend.err
-export CLEAN = rm -f rts.makedepend.err err out *.o *.a *.so *.bak *~ #*
+export CLEAN := rm -f rts.makedepend.err err out *.o *.a *.so *.bak *~ #*
+export INSTALL := /RTS/bin/install.sh
+
 
 LINK.o = $(CXX) $(LDFLAGS)
 
